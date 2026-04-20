@@ -1,0 +1,155 @@
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
+@import "tailwindcss";
+
+/* ----------------------------------------------------------------------------
+ * Vibe-a-thon design system (ported from the provided mockups).
+ * Tailwind v4 consumes these tokens as `bg-*`, `text-*`, `border-*`, etc.
+ * Keep in sync with `vibeathon_app_spec.md` UI direction.
+ * ------------------------------------------------------------------------- */
+@theme {
+  --color-background: #121416;
+  --color-surface: #121416;
+  --color-surface-dim: #121416;
+  --color-surface-bright: #37393b;
+  --color-surface-container-lowest: #0c0e10;
+  --color-surface-container-low: #1a1c1e;
+  --color-surface-container: #1e2022;
+  --color-surface-container-high: #282a2c;
+  --color-surface-container-highest: #333537;
+  --color-surface-variant: #333537;
+  --color-surface-tint: #2ddec1;
+  --color-inverse-surface: #e2e2e5;
+  --color-inverse-on-surface: #2f3133;
+
+  --color-on-background: #e2e2e5;
+  --color-on-surface: #e2e2e5;
+  --color-on-surface-variant: #bacac4;
+
+  --color-primary: #45edcf;
+  --color-primary-fixed: #59fbdd;
+  --color-primary-fixed-dim: #2ddec1;
+  --color-primary-container: #00d0b4;
+  --color-on-primary: #00382f;
+  --color-on-primary-container: #005347;
+  --color-on-primary-fixed: #00201a;
+  --color-on-primary-fixed-variant: #005145;
+  --color-inverse-primary: #006b5c;
+
+  --color-secondary: #b8c3ff;
+  --color-secondary-fixed: #dde1ff;
+  --color-secondary-fixed-dim: #b8c3ff;
+  --color-secondary-container: #0043eb;
+  --color-on-secondary: #002388;
+  --color-on-secondary-container: #c6ceff;
+  --color-on-secondary-fixed: #001356;
+  --color-on-secondary-fixed-variant: #0035be;
+
+  --color-tertiary: #ffce5e;
+  --color-tertiary-fixed: #ffdf9e;
+  --color-tertiary-fixed-dim: #fabd00;
+  --color-tertiary-container: #e9b000;
+  --color-on-tertiary: #3f2e00;
+  --color-on-tertiary-container: #5e4500;
+  --color-on-tertiary-fixed: #261a00;
+  --color-on-tertiary-fixed-variant: #5b4300;
+
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-error: #690005;
+  --color-on-error-container: #ffdad6;
+
+  --color-outline: #85948f;
+  --color-outline-variant: #3b4a46;
+
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.125rem;
+  --radius-DEFAULT: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
+  --radius-full: 9999px;
+
+  --font-headline: var(--font-space-grotesk), "Space Grotesk", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-body: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-label: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-body);
+}
+
+body {
+  min-height: 100dvh;
+  background-image: radial-gradient(
+    circle at 2px 2px,
+    rgba(69, 237, 207, 0.05) 1px,
+    transparent 0
+  );
+  background-size: 24px 24px;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.material-symbols-outlined.filled {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.glass-panel {
+  background: rgba(30, 32, 34, 0.7);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.kinetic-gradient {
+  background: linear-gradient(135deg, #45edcf 0%, #00d0b4 100%);
+}
+
+.text-glow-primary {
+  text-shadow: 0 0 10px rgba(69, 237, 207, 0.4);
+}
+
+.bracket-line {
+  background-color: rgba(69, 237, 207, 0.1);
+}
+
+.bracket-line-active {
+  background-color: #45edcf;
+  box-shadow: 0 0 10px rgba(69, 237, 207, 0.4);
+}
+
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #121416;
+}
+::-webkit-scrollbar-thumb {
+  background: #333537;
+  border-radius: 10px;
+}
