@@ -105,7 +105,7 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
             className="w-full kinetic-gradient text-on-primary font-headline font-black uppercase tracking-tight py-4 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-[0_0_30px_rgba(69,237,207,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
           >
             <FooterMark />
-            {isStarting ? "Unfurling…" : "Get Started"}
+            {isStarting ? "Entering…" : "Get Started"}
           </button>
         </div>
       </div>
