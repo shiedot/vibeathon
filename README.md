@@ -29,7 +29,7 @@ One question in every line of code:
 | `/nominate` | Best Coach nominations (max 3/participant) |
 | `/history` | Personal ₿ ledger |
 | `/judge`, `/judge/deadlocks`, `/judge/vote`, `/judge/coaches` | Judge console |
-| `/admin`, `/admin/roster`, `/admin/pods`, `/admin/play-in`, `/admin/battles`, `/admin/betting`, `/admin/bankroll`, `/admin/timing`, `/admin/audit`, `/admin/overrides`, `/admin/settlement` | Organizer console |
+| `/admin`, `/admin/pods`, `/admin/play-in`, `/admin/battles`, `/admin/betting`, `/admin/bankroll`, `/admin/timing`, `/admin/audit`, `/admin/overrides`, `/admin/settlement` | Organizer console |
 | `/spectator` | Public big-screen view (QF onward public) |
 
 ## Getting started

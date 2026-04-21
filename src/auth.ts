@@ -74,17 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const hd = (profile as { hd?: string } | undefined)?.hd?.toLowerCase();
       const emailDomain = email.split("@")[1];
 
-      // Organizer allowlist is always allowed, even if outside the workspace.
       if (organizerEmails().has(email)) return true;
-
-      // If a participants row already exists for this email, allow.
-      const existing = await db
-        .select({ id: participants.id })
-        .from(participants)
-        .where(eq(participants.email, email))
-        .limit(1);
-      if (existing.length > 0) return true;
-
       if (!allowedDomain) return true;
       return hd === allowedDomain || emailDomain === allowedDomain;
     },
@@ -102,27 +92,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         .limit(1);
 
       if (rows.length === 0) {
-        if (orgSet.has(email)) {
-          // Create synthetic organizer row.
-          const inserted = await db
-            .insert(participants)
-            .values({
-              name: user.name ?? email,
-              email,
-              department: "Organizer",
-              employeeId: `org-${email}`,
-              role: "organizer",
-              setupStatus: "ready",
-              personalBankroll: 0,
-              userId: user.id,
-            })
-            .returning();
-          session.user.role = "organizer";
-          session.user.participantId = inserted[0]?.id ?? null;
-        } else {
-          session.user.role = "participant";
-          session.user.participantId = null;
-        }
+        const isOrganizer = orgSet.has(email);
+        const inserted = await db
+          .insert(participants)
+          .values({
+            name: user.name ?? email,
+            email,
+            department: isOrganizer ? "Organizer" : "Traveller",
+            employeeId: `auto-${user.id}`.slice(0, 64),
+            role: isOrganizer ? "organizer" : "participant",
+            setupStatus: "ready",
+            personalBankroll: isOrganizer ? 0 : 1000,
+            userId: user.id,
+          })
+          .returning();
+        session.user.role = isOrganizer ? "organizer" : "participant";
+        session.user.participantId = inserted[0]?.id ?? null;
         return session;
       }
 

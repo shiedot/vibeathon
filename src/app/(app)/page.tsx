@@ -82,14 +82,10 @@ export default async function DashboardPage() {
               icon="trending_up"
             />
             <BankrollStat
-              label="Setup status"
-              amount={me.participant.setupStatus.replace("_", " ")}
+              label="Department"
+              amount={me.participant.department}
               accent="tertiary"
-              icon={
-                me.participant.setupStatus === "ready"
-                  ? "verified"
-                  : "pending_actions"
-              }
+              icon="badge"
               border
             />
           </div>

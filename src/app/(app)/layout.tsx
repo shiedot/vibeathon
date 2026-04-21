@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { TopAppBar } from "@/components/top-app-bar";
 import { BottomNavBar } from "@/components/bottom-nav-bar";
+import { WinCelebration } from "@/components/win-celebration";
 import { getCurrentParticipant } from "@/server/current-participant";
 
 export default async function AppShellLayout({
@@ -13,7 +14,7 @@ export default async function AppShellLayout({
   if (!session?.user) redirect("/signin");
 
   const me = await getCurrentParticipant();
-  if (!me) redirect("/not-on-roster");
+  if (!me) redirect("/signin");
 
   const traveller = {
     name: me.participant.name,
@@ -30,6 +31,7 @@ export default async function AppShellLayout({
       />
       <div className="pt-24 pb-32">{children}</div>
       <BottomNavBar role={me.role} />
+      <WinCelebration />
     </>
   );
 }

@@ -14,11 +14,17 @@ import {
   resetTournamentState,
 } from "@/server/pods";
 import {
+  addPhantomTravellers,
+  hardRemoveParticipant,
+  listTravellers,
+  removeLastPhantomTraveller,
+  type TravellerRow,
+} from "@/server/travellers";
+import {
   commitPlayIn,
   previewPlayIn,
   resolvePlayIn,
 } from "@/server/playin";
-import { ingestRosterCsv } from "@/server/ingest";
 import {
   adjustBankroll,
   adjustTeamPot,
@@ -37,34 +43,6 @@ import {
   type SettlementRow,
 } from "@/server/settlement";
 import { run, type ActionResult } from "@/server/action-result";
-import { db } from "@/db/client";
-import { eq, sql } from "drizzle-orm";
-import { participants } from "@/db/schema";
-
-export async function ingestCsvAction(
-  csv: string,
-): Promise<ActionResult<{ inserted: number; updated: number; errors: { row: number; message: string }[] }>> {
-  return run(async () => {
-    await requireOrganizer();
-    const result = await ingestRosterCsv(csv);
-    revalidatePath("/admin/roster");
-    return result;
-  });
-}
-
-export async function setSetupStatusAction(
-  participantId: string,
-  status: "incomplete" | "pending_review" | "ready",
-): Promise<ActionResult<void>> {
-  return run(async () => {
-    await requireOrganizer();
-    await db
-      .update(participants)
-      .set({ setupStatus: status })
-      .where(eq(participants.id, participantId));
-    revalidatePath("/admin/roster");
-  });
-}
 
 export async function previewPodsAction(
   seed: number,
@@ -90,6 +68,55 @@ export async function commitPodsAction(
     revalidatePath("/admin/battles");
     revalidatePath("/bracket");
     return res;
+  });
+}
+
+export async function addPhantomTravellersAction(
+  n: number,
+): Promise<ActionResult<{ added: number }>> {
+  return run(async () => {
+    await requireOrganizer();
+    const added = await addPhantomTravellers(n);
+    revalidatePath("/admin");
+    revalidatePath("/admin/pods");
+    revalidatePath("/admin/travellers");
+    return { added };
+  });
+}
+
+export async function removeLastPhantomAction(): Promise<
+  ActionResult<{
+    removed: { removedId: string; removedName: string } | null;
+  }>
+> {
+  return run(async () => {
+    await requireOrganizer();
+    const removed = await removeLastPhantomTraveller();
+    revalidatePath("/admin");
+    revalidatePath("/admin/pods");
+    revalidatePath("/admin/travellers");
+    return { removed };
+  });
+}
+
+export async function removeTravellerAction(
+  participantId: string,
+): Promise<ActionResult<void>> {
+  return run(async () => {
+    await requireOrganizer();
+    await hardRemoveParticipant(participantId);
+    revalidatePath("/admin");
+    revalidatePath("/admin/pods");
+    revalidatePath("/admin/travellers");
+  });
+}
+
+export async function listTravellersAction(): Promise<
+  ActionResult<TravellerRow[]>
+> {
+  return run(async () => {
+    await requireOrganizer();
+    return await listTravellers();
   });
 }
 
@@ -256,7 +283,7 @@ export async function setRoleAction(
   return run(async () => {
     const me = await requireOrganizer();
     await setParticipantRole({ participantId, role, byUserId: me.userId });
-    revalidatePath("/admin/roster");
+    revalidatePath("/admin");
   });
 }
 
@@ -316,18 +343,3 @@ export async function settlementCsvAction(opts: {
   });
 }
 
-// Small utility action so the admin overview can request a bulk mark-all-ready.
-export async function markAllReadyAction(): Promise<
-  ActionResult<{ count: number }>
-> {
-  return run(async () => {
-    await requireOrganizer();
-    const res = await db
-      .update(participants)
-      .set({ setupStatus: "ready" })
-      .where(sql`${participants.role} = 'participant' AND ${participants.setupStatus} != 'ready'`)
-      .returning({ id: participants.id });
-    revalidatePath("/admin/roster");
-    return { count: res.length };
-  });
-}

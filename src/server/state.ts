@@ -8,6 +8,7 @@ import {
   bets,
   consensusVotes,
   participants,
+  prizeLedger,
   teamMembers,
   teams,
 } from "@/db/schema";
@@ -48,6 +49,34 @@ export type MeState = {
     canVote: boolean;
     myVote: string | null;
     tally: { teamA: number; teamB: number; needed: number; remaining: number };
+  } | null;
+  /**
+   * Highest-priority un-acknowledged celebration for this participant. The
+   * client compares `key` against localStorage to ensure each celebration
+   * fires exactly once per browser.
+   *
+   * Priority (top wins):
+   *   1. Settlement named prize (grand_champion / runner_up / top_scout /
+   *      best_coach) — emitted the moment `prize_ledger` is committed.
+   *   2. Settlement participation floor — emitted once per participant.
+   *   3. Grand Champion battle win (final battle, user was captain of the
+   *      winning team) — emitted even before settlement commits.
+   *   4. Runner-Up battle loss (final battle, user was captain of the losing
+   *      team).
+   *   5. Regular battle win.
+   */
+  celebration: {
+    key: string;
+    variant:
+      | "battle_win"
+      | "grand_champion"
+      | "runner_up"
+      | "top_scout"
+      | "best_coach"
+      | "participation";
+    name: string;
+    headline: string;
+    subheadline: string;
   } | null;
 };
 
@@ -168,6 +197,8 @@ export async function getMeState(participantId: string): Promise<MeState> {
     }
   }
 
+  const celebration = await findCelebration(p.id, p.name);
+
   return {
     participant: {
       id: p.id,
@@ -181,7 +212,153 @@ export async function getMeState(participantId: string): Promise<MeState> {
     },
     team,
     currentBattle,
+    celebration,
   };
+}
+
+const ROUND_LABEL: Record<number, string> = {
+  1: "Round 1",
+  2: "Round 2",
+  3: "Round 3",
+  4: "Quarterfinal",
+  5: "Semifinal",
+  6: "Grand Final",
+};
+
+/**
+ * Resolve the highest-priority celebration for a participant. Returns null
+ * when there is nothing to celebrate.
+ */
+async function findCelebration(
+  participantId: string,
+  name: string,
+): Promise<MeState["celebration"]> {
+  // --- 1. Settlement prize (named) + 2. participation floor ---
+  const [prize] = await db
+    .select()
+    .from(prizeLedger)
+    .where(eq(prizeLedger.participantId, participantId))
+    .orderBy(desc(prizeLedger.createdAt))
+    .limit(1);
+
+  if (prize) {
+    if (prize.namedPrizeType === "founder") {
+      return {
+        key: `prize:${prize.id}:founder`,
+        variant: "grand_champion",
+        name,
+        headline: "Grand Champion",
+        subheadline: `The only Traveller who never lost. ৳${prize.namedPrizeTaka.toLocaleString()}`,
+      };
+    }
+    if (prize.namedPrizeType === "runner_up") {
+      return {
+        key: `prize:${prize.id}:runner_up`,
+        variant: "runner_up",
+        name,
+        headline: "Runner-Up Founder",
+        subheadline: `৳${prize.namedPrizeTaka.toLocaleString()} for carrying the losing Final captain slot.`,
+      };
+    }
+    if (prize.namedPrizeType === "top_scout") {
+      return {
+        key: `prize:${prize.id}:top_scout`,
+        variant: "top_scout",
+        name,
+        headline: "Top Scout",
+        subheadline: `Biggest % bankroll growth. ৳${prize.namedPrizeTaka.toLocaleString()}`,
+      };
+    }
+    if (prize.namedPrizeType === "best_coach") {
+      return {
+        key: `prize:${prize.id}:best_coach`,
+        variant: "best_coach",
+        name,
+        headline: "Best Coach",
+        subheadline: `Judges' choice. ৳${prize.namedPrizeTaka.toLocaleString()}`,
+      };
+    }
+    // No named prize — fall back to the participation floor once.
+    if (prize.participationFloorTaka > 0) {
+      return {
+        key: `prize:${prize.id}:participation`,
+        variant: "participation",
+        name,
+        headline: "You walk away with something",
+        subheadline: `Participation floor · ৳${prize.participationFloorTaka.toLocaleString()}`,
+      };
+    }
+  }
+
+  // --- 3-5. Most recent resolved battle the user was in ---
+  // `preResolveSnapshot` is the source of truth for who was where at resolve
+  // time. Look back at the last ~16 resolved battles (plenty given 8 pods x 8
+  // battles per round), then filter in JS — SQL JSON membership operators are
+  // awkward to express in Drizzle.
+  const recent = await db
+    .select({
+      id: battles.id,
+      roundNumber: battles.roundNumber,
+      teamAId: battles.teamAId,
+      teamBId: battles.teamBId,
+      winnerTeamId: battles.winnerTeamId,
+      preResolveSnapshot: battles.preResolveSnapshot,
+      actualEnd: battles.actualEnd,
+    })
+    .from(battles)
+    .where(eq(battles.status, "resolved"))
+    .orderBy(desc(battles.actualEnd))
+    .limit(16);
+
+  for (const b of recent) {
+    const snap = b.preResolveSnapshot;
+    if (!snap || !b.winnerTeamId) continue;
+    const onA = snap.teamAMembers.includes(participantId);
+    const onB = snap.teamBMembers.includes(participantId);
+    if (!onA && !onB) continue;
+
+    const myTeamId = onA ? b.teamAId : b.teamBId;
+    const won = myTeamId === b.winnerTeamId;
+    const wasCaptain =
+      (onA && snap.teamACaptain === participantId) ||
+      (onB && snap.teamBCaptain === participantId);
+    const roundLabel = ROUND_LABEL[b.roundNumber] ?? `Round ${b.roundNumber}`;
+
+    if (won) {
+      if (b.roundNumber === 6 && wasCaptain) {
+        return {
+          key: `battle:${b.id}:grand_champion`,
+          variant: "grand_champion",
+          name,
+          headline: "Grand Champion",
+          subheadline: "You never lost. The Final is yours.",
+        };
+      }
+      return {
+        key: `battle:${b.id}:win`,
+        variant: "battle_win",
+        name,
+        headline: `${roundLabel} — you won`,
+        subheadline: "Your team takes 80% of the combined pool.",
+      };
+    }
+
+    // Final loser who was captain → runner-up celebration.
+    if (b.roundNumber === 6 && wasCaptain) {
+      return {
+        key: `battle:${b.id}:runner_up`,
+        variant: "runner_up",
+        name,
+        headline: "Runner-Up Founder",
+        subheadline: "Captain of the losing Final team. Still a podium.",
+      };
+    }
+
+    // Any other loss: no celebration (but we return null so nothing fires).
+    return null;
+  }
+
+  return null;
 }
 
 export type BracketNode = {

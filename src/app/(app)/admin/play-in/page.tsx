@@ -38,13 +38,44 @@ export default async function AdminPlayInPage() {
 
   return (
     <main className="space-y-6">
-      <header>
+      <header className="space-y-3">
         <h1 className="font-headline text-4xl font-black uppercase tracking-tighter">
           Play-in round
         </h1>
-        <p className="text-on-surface-variant text-sm">
-          Only runs if roster &gt; 64. Pairs juniors (comfort ≤2, years ≤2) vs
-          senior volunteers.
+        <p className="text-on-surface-variant text-sm max-w-3xl">
+          The main bracket holds exactly 64 Travellers (8 pods of 8). When more
+          than 64 have signed up, the play-in trims the field <em>before</em>{" "}
+          Round 1 — a short head-to-head round that also creates a mentorship
+          moment between the most senior and most junior coders in the room.
+        </p>
+        <div className="grid md:grid-cols-2 gap-3 max-w-3xl">
+          <div className="rounded-lg bg-surface-container-low border border-outline-variant/10 p-3 text-xs leading-relaxed">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-primary mb-1">
+              Who plays in
+            </div>
+            <strong>Juniors</strong> (comfort ≤ 2 <em>and</em> ≤ 2 years coding)
+            get paired against <strong>senior volunteers</strong> (comfort ≥ 3).
+            Seniors opt in — nobody is forced to give up their main-bracket
+            slot. Pairings are generated on Preview; commit writes the battles
+            at scheduled start.
+          </div>
+          <div className="rounded-lg bg-surface-container-low border border-outline-variant/10 p-3 text-xs leading-relaxed">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-primary mb-1">
+              Outcomes
+            </div>
+            <strong>Junior wins (upset):</strong> junior enters the main bracket
+            with a full 1,000 ₿; senior is out but takes home a 500 ₿{" "}
+            <em>Mentor's Honor</em> bonus. <br />
+            <strong>Senior wins:</strong> senior enters the main bracket at
+            1,000 ₿; junior is out of battles but gets a 200 ₿{" "}
+            <em>Learner's Bankroll</em> to bet with as a scout.
+          </div>
+        </div>
+        <p className="text-[11px] text-on-surface-variant max-w-3xl">
+          If 64 or fewer Travellers are registered, the play-in is skipped
+          entirely — Preview will return zero matchups. The UI below lists any
+          play-in battles that already exist so you can resolve them before
+          committing Round 1.
         </p>
       </header>
       <PlayInClient

@@ -4,7 +4,6 @@ import { getCurrentParticipant } from "@/server/current-participant";
 
 const ADMIN_NAV = [
   { href: "/admin", label: "Overview" },
-  { href: "/admin/roster", label: "Roster" },
   { href: "/admin/pods", label: "Pods & R1" },
   { href: "/admin/play-in", label: "Play-in" },
   { href: "/admin/battles", label: "Battles" },

@@ -22,13 +22,10 @@ async function classifyRoster() {
       yearsCoding: participants.yearsCoding,
       comfortLevel: participants.comfortLevel,
       role: participants.role,
-      setupStatus: participants.setupStatus,
     })
     .from(participants);
 
-  const eligible = rows.filter(
-    (r) => r.role === "participant" && r.setupStatus === "ready",
-  );
+  const eligible = rows.filter((r) => r.role === "participant");
 
   const juniors = eligible
     .filter((r) => r.comfortLevel <= 2 && r.yearsCoding <= 2)
@@ -250,11 +247,7 @@ export async function resolvePlayIn(
           isPlayInParticipant: true,
         })
         .where(eq(participants.id, juniorPid));
-      // Senior is out of the main bracket.
-      await tx
-        .update(participants)
-        .set({ setupStatus: "incomplete" })
-        .where(eq(participants.id, seniorPid));
+      // Senior is out of the main bracket (playInResult="lost" gates pods).
     } else {
       // Junior receives 200 ₿ Learner's Bankroll for betting.
       await tx
@@ -263,7 +256,6 @@ export async function resolvePlayIn(
           learnerBankroll: 200,
           personalBankroll: 200,
           currentTeamId: null,
-          setupStatus: "incomplete",
         })
         .where(eq(participants.id, juniorPid));
       await tx.insert(bankrollLedger).values({

@@ -3,19 +3,15 @@ import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { battles, participants, teams, bets } from "@/db/schema";
 import { AuditCard } from "./_audit-card";
+import { VotingBoothHero } from "./_voting-booth-hero";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverviewPage() {
-  const [pTotal] = await db.select({ c: count() }).from(participants);
-  const [pReady] = await db
+  const [pTotal] = await db
     .select({ c: count() })
     .from(participants)
-    .where(sql`${participants.role} = 'participant' AND ${participants.setupStatus} = 'ready'`);
-  const [pIncomplete] = await db
-    .select({ c: count() })
-    .from(participants)
-    .where(sql`${participants.role} = 'participant' AND ${participants.setupStatus} != 'ready'`);
+    .where(sql`${participants.role} = 'participant'`);
 
   const [tTotal] = await db.select({ c: count() }).from(teams);
   const [tActive] = await db
@@ -44,16 +40,16 @@ export default async function AdminOverviewPage() {
 
   const tiles: { href: string; icon: string; title: string; body: string }[] = [
     {
-      href: "/admin/roster",
-      icon: "groups",
-      title: "Roster",
-      body: `${pTotal.c} total · ${pReady.c} ready · ${pIncomplete.c} pending`,
-    },
-    {
       href: "/admin/pods",
       icon: "account_tree",
-      title: "Pods & R1",
-      body: `${tTotal.c} teams · ${tActive.c} active`,
+      title: "Pods & Round 1",
+      body: `${pTotal.c} travellers · ${tTotal.c} teams · ${tActive.c} active`,
+    },
+    {
+      href: "/admin/travellers",
+      icon: "group",
+      title: "Travellers",
+      body: `${pTotal.c} on the roster — add, remove, audit`,
     },
     {
       href: "/admin/battles",
@@ -71,7 +67,7 @@ export default async function AdminOverviewPage() {
       href: "/admin/play-in",
       icon: "school",
       title: "Play-in",
-      body: "David vs Goliath pairing",
+      body: "Trims the field to 64 — juniors vs senior volunteers. Upset = 500 ₿ Mentor's Honor; loss = 200 ₿ Learner's Bankroll.",
     },
     {
       href: "/admin/timing",
@@ -119,7 +115,7 @@ export default async function AdminOverviewPage() {
         </h1>
       </header>
 
-      <AuditCard />
+      <VotingBoothHero />
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tiles.map((t) => (
@@ -143,6 +139,8 @@ export default async function AdminOverviewPage() {
           </Link>
         ))}
       </section>
+
+      <AuditCard />
     </main>
   );
 }

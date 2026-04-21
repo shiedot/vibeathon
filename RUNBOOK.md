@@ -10,15 +10,10 @@ Every screen polls every 2–3 seconds; you never need to refresh.
 
 1. **Log in** at the app with an address in `ORGANIZER_EMAILS`. A synthetic
    organizer participant row is created on first login.
-2. Visit `/admin/roster`:
-   - Download the CSV template.
-   - Fill in every Traveller (required: `name`, `email`, `department`,
-     `employee_id`, `years_coding`, `comfort_level`).
-   - Upload. The importer is idempotent keyed by `employee_id`.
-   - Travellers whose `completed_test_pr=Y` become `ready` automatically.
-     Review others in the roster table, bump `setup_status` to `ready` when
-     they're cleared.
-3. If the roster has > 64 participants, go to `/admin/play-in` now.
+2. No roster to import — any allowed-domain user auto-joins as a participant
+   (1000 ₿ bankroll) the first time they sign in. Share the app URL and let
+   travellers log in.
+3. If more than 64 travellers sign up, go to `/admin/play-in`.
    - Click **Preview pairings** to see the David-vs-Goliath lineup.
    - Set the play-in start time. Click **Commit** to create the pairing
      battles. They start in `pending`.

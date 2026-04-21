@@ -317,7 +317,7 @@ export const battles = pgTable("battles", {
 
   // Judge votes for SF/Final per §5 (1 judge vote = 1 member vote, max 3).
   judgeVotes: jsonb("judge_votes")
-    .$type<{ judgeId: string; teamVotedFor: string }[]>()
+    .$type<{ judgeId: string; teamVotedFor: string; castAt?: string }[]>()
     .notNull()
     .default([]),
 

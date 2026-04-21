@@ -32,7 +32,7 @@ export const getCurrentParticipant = cache(
 
 export async function requireParticipant(): Promise<AuthedParticipant> {
   const me = await getCurrentParticipant();
-  if (!me) throw new Error("Not authenticated or not on roster");
+  if (!me) throw new Error("Not authenticated");
   return me;
 }
 

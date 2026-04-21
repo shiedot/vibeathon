@@ -43,11 +43,16 @@ async function loadReadyRoster(): Promise<RosterEntry[]> {
       yearsCoding: participants.yearsCoding,
       comfortLevel: participants.comfortLevel,
       role: participants.role,
-      setupStatus: participants.setupStatus,
+      isPlayInParticipant: participants.isPlayInParticipant,
+      playInResult: participants.playInResult,
     })
     .from(participants);
   return rows
-    .filter((r) => r.role === "participant" && r.setupStatus === "ready")
+    .filter(
+      (r) =>
+        r.role === "participant" &&
+        !(r.isPlayInParticipant && r.playInResult === "lost"),
+    )
     .map((r) => ({
       id: r.id,
       name: r.name,

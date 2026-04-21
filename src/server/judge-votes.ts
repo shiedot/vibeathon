@@ -37,7 +37,11 @@ export async function castJudgeVote(opts: {
   }
   const next = [
     ...filtered,
-    { judgeId: opts.judgeParticipantId, teamVotedFor: opts.teamVotedFor },
+    {
+      judgeId: opts.judgeParticipantId,
+      teamVotedFor: opts.teamVotedFor,
+      castAt: new Date().toISOString(),
+    },
   ];
   await db
     .update(battles)
