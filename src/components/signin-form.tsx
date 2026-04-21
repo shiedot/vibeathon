@@ -75,7 +75,7 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
       {/* pointer-events-none on the wrapper lets drag events pass through to
           the globe everywhere except the inner card (re-enabled below). */}
       <div className="pointer-events-none relative flex items-center justify-center px-6 min-h-[calc(100dvh-6rem)]">
-        <div className="pointer-events-auto w-full max-w-md translate-y-20 md:translate-y-24">
+        <div className="pointer-events-auto w-full max-w-md">
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 mb-4">
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
