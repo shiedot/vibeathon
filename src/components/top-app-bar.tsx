@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { NavLink } from "./nav-link";
 import { UserAvatar } from "./user-avatar";
-import { signOut } from "@/auth";
+import { leaveAction } from "@/app/signin/actions";
 
 type Role = "participant" | "organizer" | "judge";
 
@@ -14,12 +14,12 @@ const BASE_ITEMS = [
   { href: "/prizes", label: "Prizes" },
 ] as const;
 
-function itemsForRole(role: Role) {
+function itemsForRole(role: Role, isAdmin: boolean) {
   const items = [...BASE_ITEMS] as { href: string; label: string }[];
-  if (role === "judge" || role === "organizer") {
+  if (isAdmin || role === "judge" || role === "organizer") {
     items.push({ href: "/judge", label: "Judge" });
   }
-  if (role === "organizer") {
+  if (isAdmin || role === "organizer") {
     items.push({ href: "/admin", label: "Admin" });
   }
   return items;
@@ -33,10 +33,16 @@ type TopAppBarProps = {
     image: string | null;
   };
   role?: Role;
+  isAdmin?: boolean;
 };
 
-export function TopAppBar({ bankroll = 1000, user, role = "participant" }: TopAppBarProps) {
-  const navItems = itemsForRole(role);
+export function TopAppBar({
+  bankroll = 1000,
+  user,
+  role = "participant",
+  isAdmin = false,
+}: TopAppBarProps) {
+  const navItems = itemsForRole(role, isAdmin);
   return (
     <nav className="fixed top-0 w-full z-50 bg-[#121416]/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,208,180,0.05)]">
       <div className="flex justify-between items-center px-6 py-4 w-full max-w-7xl mx-auto">
@@ -68,15 +74,11 @@ export function TopAppBar({ bankroll = 1000, user, role = "participant" }: TopAp
           {user && (
             <div className="flex items-center gap-3">
               <UserAvatar src={user.image} name={user.name} email={user.email} />
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/signin" });
-                }}
-              >
+              <form action={leaveAction}>
                 <button
                   type="submit"
-                  aria-label="Sign out"
+                  aria-label="Switch user"
+                  title="Switch user"
                   className="hidden md:inline-flex w-10 h-10 rounded-full border border-outline-variant/30 items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors"
                 >
                   <span className="material-symbols-outlined text-base">

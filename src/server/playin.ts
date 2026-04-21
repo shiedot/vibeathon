@@ -21,6 +21,7 @@ async function classifyRoster() {
       name: participants.name,
       yearsCoding: participants.yearsCoding,
       comfortLevel: participants.comfortLevel,
+      shippingConfidence: participants.shippingConfidence,
       role: participants.role,
     })
     .from(participants);
@@ -32,14 +33,22 @@ async function classifyRoster() {
     .map((r) => ({
       id: r.id,
       name: r.name,
-      experienceScore: experienceScore(r.comfortLevel, r.yearsCoding),
+      experienceScore: experienceScore(
+        r.yearsCoding,
+        r.comfortLevel,
+        r.shippingConfidence,
+      ),
     }));
   const seniors = eligible
     .filter((r) => r.comfortLevel >= 3)
     .map((r) => ({
       id: r.id,
       name: r.name,
-      experienceScore: experienceScore(r.comfortLevel, r.yearsCoding),
+      experienceScore: experienceScore(
+        r.yearsCoding,
+        r.comfortLevel,
+        r.shippingConfidence,
+      ),
     }));
   return { juniors, seniors, total: eligible.length };
 }

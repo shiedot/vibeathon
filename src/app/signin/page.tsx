@@ -1,17 +1,19 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { SignInForm } from "@/components/signin-form";
+import { getCurrentParticipant } from "@/server/current-participant";
+import { Landing } from "./landing";
+
+export const dynamic = "force-dynamic";
 
 type SignInPageProps = {
-  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+  searchParams: Promise<{ callbackUrl?: string }>;
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
-  const session = await auth();
+  const me = await getCurrentParticipant();
   const params = await searchParams;
   const callbackUrl = params.callbackUrl ?? "/";
 
-  if (session) redirect(callbackUrl);
+  if (me) redirect(callbackUrl);
 
-  return <SignInForm callbackUrl={callbackUrl} error={params.error} />;
+  return <Landing callbackUrl={callbackUrl} />;
 }

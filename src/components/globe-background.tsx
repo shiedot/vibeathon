@@ -100,6 +100,12 @@ export interface GlobeBackgroundProps {
   className?: string;
   /** Opacity of strokes (0..1). Default 0.6 so content stays readable. */
   strokeOpacity?: number;
+  /**
+   * Optional starting progress value. 0 = full orthographic globe (default),
+   * 1 = fully unrolled equirectangular map. Use this on pages the user lands
+   * on *after* an unroll animation so the background stays flat.
+   */
+  initialProgress?: number;
 }
 
 export function GlobeBackground({
@@ -107,12 +113,14 @@ export function GlobeBackground({
   onUnrollComplete,
   className,
   strokeOpacity = 0.6,
+  initialProgress = 0,
 }: GlobeBackgroundProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [worldData, setWorldData] = useState<CountryFeature[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [rotation, setRotation] =
-    useState<[number, number]>(INITIAL_ROTATION);
+  const [progress, setProgress] = useState(initialProgress);
+  const [rotation, setRotation] = useState<[number, number]>(
+    initialProgress >= 1 ? END_ROTATION : INITIAL_ROTATION,
+  );
   const rafRef = useRef<number | null>(null);
   const completeCalledRef = useRef(false);
 

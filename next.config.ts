@@ -5,12 +5,10 @@ const nextConfig: NextConfig = {
     root: import.meta.dirname,
   },
   images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "lh3.googleusercontent.com" },
-    ],
+    remotePatterns: [],
   },
-  // @auth/drizzle-adapter + pg pull in Node built-ins. Keep them external so
-  // the bundler doesn't try to polyfill them.
+  // pg pulls in Node built-ins; keep it external so the bundler doesn't try
+  // to polyfill them.
   serverExternalPackages: ["pg", "pg-native"],
 };
 

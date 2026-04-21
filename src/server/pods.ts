@@ -31,6 +31,13 @@ export type PodsPreview = {
     teamA: { id: string; name: string };
     teamB: { id: string; name: string };
   }[];
+  roster: {
+    id: string;
+    name: string;
+    department: string;
+    experienceScore: number;
+    rank: number;
+  }[];
 };
 
 async function loadReadyRoster(): Promise<RosterEntry[]> {
@@ -42,6 +49,7 @@ async function loadReadyRoster(): Promise<RosterEntry[]> {
       preferredPitchLanguage: participants.preferredPitchLanguage,
       yearsCoding: participants.yearsCoding,
       comfortLevel: participants.comfortLevel,
+      shippingConfidence: participants.shippingConfidence,
       role: participants.role,
       isPlayInParticipant: participants.isPlayInParticipant,
       playInResult: participants.playInResult,
@@ -58,14 +66,18 @@ async function loadReadyRoster(): Promise<RosterEntry[]> {
       name: r.name,
       department: r.department,
       preferredPitchLanguage: r.preferredPitchLanguage,
-      experienceScore: experienceScore(r.comfortLevel, r.yearsCoding),
+      experienceScore: experienceScore(
+        r.yearsCoding,
+        r.comfortLevel,
+        r.shippingConfidence,
+      ),
     }));
 }
 
-export async function previewPods(seed = 1): Promise<PodsPreview> {
+export async function previewPods(): Promise<PodsPreview> {
   const roster = await loadReadyRoster();
   if (roster.length === 0) {
-    return { pods: [], r1Matchups: [] };
+    return { pods: [], r1Matchups: [], roster: [] };
   }
   if (roster.length > 64) {
     throw new Error(
@@ -73,7 +85,27 @@ export async function previewPods(seed = 1): Promise<PodsPreview> {
     );
   }
   const pods = snakeDraftPods(roster, 8);
-  const r1 = generateR1Matchups(pods, seed);
+  const r1 = generateR1Matchups(pods);
+
+  // Rank 1..N by score desc (same ordering snake draft uses).
+  const ranked = roster
+    .slice()
+    .sort((a, b) => {
+      if (b.experienceScore !== a.experienceScore) {
+        return b.experienceScore - a.experienceScore;
+      }
+      const n = a.name.localeCompare(b.name);
+      if (n !== 0) return n;
+      return a.id.localeCompare(b.id);
+    })
+    .map((r, i) => ({
+      id: r.id,
+      name: r.name,
+      department: r.department,
+      experienceScore: r.experienceScore,
+      rank: i + 1,
+    }));
+
   return {
     pods: pods.map((p) => ({
       podId: p.podId,
@@ -89,18 +121,29 @@ export async function previewPods(seed = 1): Promise<PodsPreview> {
       teamA: { id: m.teamA.id, name: m.teamA.name },
       teamB: { id: m.teamB.id, name: m.teamB.name },
     })),
+    roster: ranked,
   };
 }
+
+export type CommitMatchup = {
+  podId: number;
+  teamAParticipantId: string;
+  teamBParticipantId: string;
+};
 
 /**
  * Commit: creates a solo team per participant, a team_members link, an R1
  * battle per pair, plus a `seed` ledger row per participant recording the
  * 1000 ₿ initial stake.
  *
+ * `matchups` lets the admin override the auto-paired seed. Each row must
+ * reference distinct participants, every participant must appear in exactly
+ * one matchup, and podId ∈ 1..8.
+ *
  * Idempotency: refuses to run if any teams/battles already exist.
  */
 export async function commitPodsAndR1(opts: {
-  seed: number;
+  matchups: CommitMatchup[];
   scheduledStart: Date;
   byUserId: string;
 }): Promise<{ teamsCreated: number; battlesCreated: number }> {
@@ -120,8 +163,40 @@ export async function commitPodsAndR1(opts: {
   if (roster.length === 0) {
     throw new Error("No ready participants to seed.");
   }
-  const pods = snakeDraftPods(roster, 8);
-  const r1 = generateR1Matchups(pods, opts.seed);
+
+  const byId = new Map(roster.map((r) => [r.id, r]));
+  const seen = new Set<string>();
+  for (const m of opts.matchups) {
+    if (!Number.isInteger(m.podId) || m.podId < 1 || m.podId > 8) {
+      throw new Error(`Invalid pod id ${m.podId}; must be 1..8.`);
+    }
+    if (m.teamAParticipantId === m.teamBParticipantId) {
+      throw new Error(
+        `Matchup in pod ${m.podId} has the same participant on both sides.`,
+      );
+    }
+    for (const pid of [m.teamAParticipantId, m.teamBParticipantId]) {
+      if (!byId.has(pid)) {
+        throw new Error(`Unknown or ineligible participant in matchup: ${pid}`);
+      }
+      if (seen.has(pid)) {
+        throw new Error(
+          `Participant ${byId.get(pid)?.name ?? pid} is in more than one matchup.`,
+        );
+      }
+      seen.add(pid);
+    }
+  }
+  if (seen.size !== roster.length) {
+    throw new Error(
+      `Matchups cover ${seen.size} participants but roster has ${roster.length}.`,
+    );
+  }
+  if (opts.matchups.length * 2 !== roster.length) {
+    throw new Error(
+      `Matchup count ${opts.matchups.length} doesn't fit roster of ${roster.length}.`,
+    );
+  }
 
   const durationMinutes = ROUND_DEFS[1].durationMinutes;
   const betClose = bettingClosesAt(opts.scheduledStart, durationMinutes);
@@ -130,7 +205,6 @@ export async function commitPodsAndR1(opts: {
   let battlesCreated = 0;
 
   await db.transaction(async (tx) => {
-    // Upsert round_config row.
     await tx
       .insert(roundConfig)
       .values({
@@ -158,72 +232,74 @@ export async function commitPodsAndR1(opts: {
 
     const teamIdByParticipant = new Map<string, string>();
 
-    for (const pod of pods) {
-      for (const member of pod.members) {
-        const [team] = await tx
-          .insert(teams)
-          .values({
-            podId: pod.podId,
-            currentRound: 1,
-            captainId: member.id,
-            teamPot: 1000,
-            lineageRootCaptainId: member.id,
-            displayName: member.name,
-          })
-          .returning();
+    async function ensureTeam(participantId: string, podId: number) {
+      const member = byId.get(participantId)!;
+      const [team] = await tx
+        .insert(teams)
+        .values({
+          podId,
+          currentRound: 1,
+          captainId: member.id,
+          teamPot: 1000,
+          lineageRootCaptainId: member.id,
+          displayName: member.name,
+        })
+        .returning();
 
-        await tx.insert(teamMembers).values({
-          teamId: team.id,
-          participantId: member.id,
-        });
+      await tx.insert(teamMembers).values({
+        teamId: team.id,
+        participantId: member.id,
+      });
 
-        await tx
-          .update(participants)
-          .set({
-            currentTeamId: team.id,
-            r1LineageRootId: member.id,
-          })
-          .where(eq(participants.id, member.id));
+      await tx
+        .update(participants)
+        .set({
+          currentTeamId: team.id,
+          r1LineageRootId: member.id,
+        })
+        .where(eq(participants.id, member.id));
 
-        await tx.insert(bankrollLedger).values({
-          kind: "seed",
-          participantId: member.id,
-          teamId: team.id,
-          delta: 0, // seed row: 1000₿ personal → 1000₿ pot, net zero for conservation
-          reason: "R1 solo team seeded with 1000 ₿",
-          byUserId: opts.byUserId,
-        });
+      await tx.insert(bankrollLedger).values({
+        kind: "seed",
+        participantId: member.id,
+        teamId: team.id,
+        delta: 0,
+        reason: "R1 solo team seeded with 1000 ₿",
+        byUserId: opts.byUserId,
+      });
 
-        // Personal bankroll -> team pot stake.
-        await tx
-          .update(participants)
-          .set({ personalBankroll: 0 })
-          .where(eq(participants.id, member.id));
-        await tx.insert(bankrollLedger).values({
-          kind: "stake",
-          participantId: member.id,
-          teamId: team.id,
-          delta: -1000,
-          reason: "R1 stake",
-          byUserId: opts.byUserId,
-        });
-        await tx.insert(bankrollLedger).values({
-          kind: "stake",
-          teamId: team.id,
-          delta: 1000,
-          reason: "R1 stake",
-          byUserId: opts.byUserId,
-        });
+      await tx
+        .update(participants)
+        .set({ personalBankroll: 0 })
+        .where(eq(participants.id, member.id));
+      await tx.insert(bankrollLedger).values({
+        kind: "stake",
+        participantId: member.id,
+        teamId: team.id,
+        delta: -1000,
+        reason: "R1 stake",
+        byUserId: opts.byUserId,
+      });
+      await tx.insert(bankrollLedger).values({
+        kind: "stake",
+        teamId: team.id,
+        delta: 1000,
+        reason: "R1 stake",
+        byUserId: opts.byUserId,
+      });
 
-        teamIdByParticipant.set(member.id, team.id);
-        teamsCreated += 1;
-      }
+      teamIdByParticipant.set(member.id, team.id);
+      teamsCreated += 1;
     }
 
-    for (const m of r1) {
-      const aTeamId = teamIdByParticipant.get(m.teamA.id);
-      const bTeamId = teamIdByParticipant.get(m.teamB.id);
-      if (!aTeamId || !bTeamId) continue;
+    for (const m of opts.matchups) {
+      await ensureTeam(m.teamAParticipantId, m.podId);
+      await ensureTeam(m.teamBParticipantId, m.podId);
+    }
+
+    for (const m of opts.matchups) {
+      const aTeamId = teamIdByParticipant.get(m.teamAParticipantId)!;
+      const bTeamId = teamIdByParticipant.get(m.teamBParticipantId)!;
       await tx.insert(battles).values({
         roundNumber: 1,
         isPlayIn: false,
@@ -254,19 +330,17 @@ export async function resetTournamentState(): Promise<void> {
     await tx.delete(battles);
     await tx.delete(teamMembers);
     await tx.delete(teams);
-    await tx
-      .update(participants)
-      .set({
-        currentTeamId: null,
-        r1LineageRootId: null,
-        eliminatedByTeamId: null,
-        personalBankroll: 1000,
-        isPlayInParticipant: false,
-        playInRole: null,
-        playInResult: null,
-        mentorHonorBonus: 0,
-        learnerBankroll: 0,
-      });
+    await tx.update(participants).set({
+      currentTeamId: null,
+      r1LineageRootId: null,
+      eliminatedByTeamId: null,
+      personalBankroll: 1000,
+      isPlayInParticipant: false,
+      playInRole: null,
+      playInResult: null,
+      mentorHonorBonus: 0,
+      learnerBankroll: 0,
+    });
   });
 }
 
@@ -288,5 +362,4 @@ export async function ensureNoBattleStartedForRound(round: number) {
   }
 }
 
-// Small helper for admin pages — exposes the `and`/`eq` imports used above.
 export const _ = { and, eq };

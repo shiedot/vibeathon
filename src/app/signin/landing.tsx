@@ -3,49 +3,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { GlobeBackground } from "@/components/globe-background";
 
-const ERROR_COPY: Record<string, { title: string; body: string }> = {
-  AccessDenied: {
-    title: "Sign-in not allowed.",
-    body: "This Google account isn’t permitted for this app. Try another account or ask the organizers for access.",
-  },
-  Configuration: {
-    title: "Config issue on our side.",
-    body: "OAuth config is incomplete. Ping shie@ to fix the server env.",
-  },
-  Verification: {
-    title: "Couldn't verify that login.",
-    body: "Try again, or reach out to the organizers if this keeps happening.",
-  },
-};
+const POST_UNROLL_DELAY_MS = 900;
 
-export interface SignInFormProps {
-  callbackUrl: string;
-  error?: string;
-}
-
-/** How long to pause after the unroll animation before redirecting. */
-const POST_UNROLL_DELAY_MS = 1000;
-
-export function SignInForm({ callbackUrl, error }: SignInFormProps) {
+export function Landing({ callbackUrl }: { callbackUrl: string }) {
   const [unroll, setUnroll] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
-
-  const copy = error ? ERROR_COPY[error] : undefined;
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   const handleClick = useCallback(() => {
-    if (isStarting) return;
-    setIsStarting(true);
+    if (busy) return;
+    setBusy(true);
     setUnroll(true);
-  }, [isStarting]);
+  }, [busy]);
 
   const handleUnrollComplete = useCallback(() => {
+    const target = `/signin/pick?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    // Prefetch + push after a beat so the unfurl reads as intentional.
+    router.prefetch(target);
     window.setTimeout(() => {
-      void signIn("google", { callbackUrl });
+      router.push(target);
     }, POST_UNROLL_DELAY_MS);
-  }, [callbackUrl]);
+  }, [callbackUrl, router]);
 
   return (
     <main className="relative min-h-[calc(100dvh-6rem)] overflow-hidden">
@@ -72,8 +53,6 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
         />
       </Link>
 
-      {/* pointer-events-none on the wrapper lets drag events pass through to
-          the globe everywhere except the inner card (re-enabled below). */}
       <div className="pointer-events-none relative flex items-center justify-center px-6 min-h-[calc(100dvh-6rem)]">
         <div className="pointer-events-auto w-full max-w-md">
           <div className="text-center mb-10">
@@ -89,23 +68,14 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
             </h1>
           </div>
 
-          {copy && (
-            <div className="mb-6 p-5 rounded-xl bg-error-container/30 border border-error/30 text-on-error-container backdrop-blur-sm">
-              <div className="font-headline font-bold uppercase text-sm mb-1">
-                {copy.title}
-              </div>
-              <p className="text-xs leading-relaxed opacity-90">{copy.body}</p>
-            </div>
-          )}
-
           <button
             type="button"
             onClick={handleClick}
-            disabled={isStarting}
-            className="w-full kinetic-gradient text-on-primary font-headline font-black uppercase tracking-tight py-4 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-[0_0_30px_rgba(69,237,207,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
+            disabled={busy}
+            className="w-full kinetic-gradient text-on-primary font-headline font-black uppercase tracking-tight py-4 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-[0_0_30px_rgba(69,237,207,0.25)] disabled:opacity-80 disabled:cursor-not-allowed"
           >
             <FooterMark />
-            {isStarting ? "Entering…" : "Get Started"}
+            {busy ? "Entering…" : "Get Started"}
           </button>
         </div>
       </div>
@@ -113,11 +83,6 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
   );
 }
 
-/**
- * Footer/brand mark used inside the Get Started button. Inlined so `fill`
- * reads from `currentColor`, which lets the mark pick up the button's
- * `text-on-primary` color (dark on the green kinetic-gradient).
- */
 function FooterMark() {
   return (
     <svg

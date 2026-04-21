@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentParticipant } from "@/server/current-participant";
+import { isAdminAuthed } from "@/server/admin-auth";
+import { exitAdminAction } from "@/app/signin/actions";
+import { AdminLoginGate } from "./_login-gate";
 
 const ADMIN_NAV = [
   { href: "/admin", label: "Overview" },
@@ -21,12 +24,21 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const me = await getCurrentParticipant();
-  if (!me) redirect("/signin");
-  if (me.role !== "organizer") redirect("/");
+  if (!me) redirect("/signin?callbackUrl=/admin");
+
+  const admin = await isAdminAuthed();
+
+  if (!admin && me.role !== "organizer") {
+    return (
+      <div className="max-w-md mx-auto px-6 pt-8">
+        <AdminLoginGate />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 space-y-6">
-      <nav className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 border-b border-outline-variant/20">
+      <nav className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 border-b border-outline-variant/20 items-center">
         {ADMIN_NAV.map((n) => (
           <Link
             key={n.href}
@@ -36,6 +48,14 @@ export default async function AdminLayout({
             {n.label}
           </Link>
         ))}
+        <form action={exitAdminAction} className="ml-auto">
+          <button
+            type="submit"
+            className="whitespace-nowrap px-3 py-2 rounded-lg text-xs uppercase tracking-widest font-bold text-on-surface-variant hover:bg-surface-container-high hover:text-tertiary"
+          >
+            Exit admin
+          </button>
+        </form>
       </nav>
       {children}
     </div>

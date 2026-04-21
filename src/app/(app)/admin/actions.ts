@@ -12,6 +12,7 @@ import {
   commitPodsAndR1,
   previewPods,
   resetTournamentState,
+  type CommitMatchup,
 } from "@/server/pods";
 import {
   addPhantomTravellers,
@@ -44,23 +45,23 @@ import {
 } from "@/server/settlement";
 import { run, type ActionResult } from "@/server/action-result";
 
-export async function previewPodsAction(
-  seed: number,
-): Promise<ActionResult<Awaited<ReturnType<typeof previewPods>>>> {
+export async function previewPodsAction(): Promise<
+  ActionResult<Awaited<ReturnType<typeof previewPods>>>
+> {
   return run(async () => {
     await requireOrganizer();
-    return await previewPods(seed);
+    return await previewPods();
   });
 }
 
 export async function commitPodsAction(
-  seed: number,
+  matchups: CommitMatchup[],
   startAtIso: string,
 ): Promise<ActionResult<{ teamsCreated: number; battlesCreated: number }>> {
   return run(async () => {
     const me = await requireOrganizer();
     const res = await commitPodsAndR1({
-      seed,
+      matchups,
       scheduledStart: new Date(startAtIso),
       byUserId: me.userId,
     });

@@ -16,7 +16,9 @@ export default async function JudgeLayout({
 }) {
   const me = await getCurrentParticipant();
   if (!me) redirect("/signin");
-  if (me.role !== "judge" && me.role !== "organizer") redirect("/");
+  if (!me.isAdmin && me.role !== "judge" && me.role !== "organizer") {
+    redirect("/");
+  }
   return (
     <div className="max-w-7xl mx-auto px-6 space-y-6">
       <nav className="flex gap-2 overflow-x-auto py-2 border-b border-outline-variant/20">
