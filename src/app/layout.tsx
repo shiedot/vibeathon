@@ -28,6 +28,14 @@ export default function RootLayout({
       lang="en"
       className={`dark ${inter.variable} ${spaceGrotesk.variable}`}
     >
+      <head>
+        {/* Material Symbols (ligature-based icons). Loaded via <link> instead of
+            `@import` in globals.css to avoid Tailwind v4 stripping it. */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        />
+      </head>
       <body className="bg-background text-on-background font-body selection:bg-primary selection:text-on-primary">
         {children}
       </body>

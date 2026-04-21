@@ -1,67 +1,112 @@
 import Link from "next/link";
+import { count, eq, sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import { battles, participants, teams, bets } from "@/db/schema";
+import { AuditCard } from "./_audit-card";
 
-const SECTIONS = [
-  {
-    href: "/admin/roster",
-    icon: "groups",
-    title: "Roster & setup gating",
-    body: "Ingest CSV, flag incomplete setup, run the Y/N gate before R1 can start.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/play-in",
-    icon: "school",
-    title: "Play-in pairing",
-    body: "Sort juniors + senior volunteers and generate David-vs-Goliath matchups.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/pods",
-    icon: "account_tree",
-    title: "Pod assignment + R1",
-    body: "Snake-draft by experience score into 8 pods of 8 and randomize R1 matchups.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/battles",
-    icon: "sports_kabaddi",
-    title: "Battle lifecycle",
-    body: "Start, open voting, record result, or trigger judge intervention per battle.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/bankroll",
-    icon: "account_balance_wallet",
-    title: "Bankroll & pot audit",
-    body: "Live view of personal bankrolls, team pots, and money-conservation ledger.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/betting",
-    icon: "monetization_on",
-    title: "Bet pools + close",
-    body: "Monitor parimutuel pools, halfway close countdowns, lock bets, settle payouts.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/nominations",
-    icon: "groups",
-    title: "Best Coach nominations",
-    body: "Judge-only aggregated view of nominees, counts, and reasons.",
-    status: "Stub",
-  },
-  {
-    href: "/admin/settlement",
-    icon: "receipt_long",
-    title: "Final settlement",
-    body: "Compute prize ledger per Traveller, assign redemption method, export.",
-    status: "Stub",
-  },
-];
+export const dynamic = "force-dynamic";
 
-export default function AdminPage() {
+export default async function AdminOverviewPage() {
+  const [pTotal] = await db.select({ c: count() }).from(participants);
+  const [pReady] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${participants.role} = 'participant' AND ${participants.setupStatus} = 'ready'`);
+  const [pIncomplete] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${participants.role} = 'participant' AND ${participants.setupStatus} != 'ready'`);
+
+  const [tTotal] = await db.select({ c: count() }).from(teams);
+  const [tActive] = await db
+    .select({ c: count() })
+    .from(teams)
+    .where(eq(teams.isActive, true));
+
+  const [bPending] = await db
+    .select({ c: count() })
+    .from(battles)
+    .where(eq(battles.status, "pending"));
+  const [bVoting] = await db
+    .select({ c: count() })
+    .from(battles)
+    .where(eq(battles.status, "voting"));
+  const [bDead] = await db
+    .select({ c: count() })
+    .from(battles)
+    .where(eq(battles.status, "deadlocked"));
+  const [bResolved] = await db
+    .select({ c: count() })
+    .from(battles)
+    .where(eq(battles.status, "resolved"));
+
+  const [totalBets] = await db.select({ c: count() }).from(bets);
+
+  const tiles: { href: string; icon: string; title: string; body: string }[] = [
+    {
+      href: "/admin/roster",
+      icon: "groups",
+      title: "Roster",
+      body: `${pTotal.c} total · ${pReady.c} ready · ${pIncomplete.c} pending`,
+    },
+    {
+      href: "/admin/pods",
+      icon: "account_tree",
+      title: "Pods & R1",
+      body: `${tTotal.c} teams · ${tActive.c} active`,
+    },
+    {
+      href: "/admin/battles",
+      icon: "sports_kabaddi",
+      title: "Battles",
+      body: `${bPending.c} pending · ${bVoting.c} voting · ${bResolved.c} resolved${bDead.c ? ` · ${bDead.c} deadlocked` : ""}`,
+    },
+    {
+      href: "/admin/betting",
+      icon: "monetization_on",
+      title: "Bet pools",
+      body: `${totalBets.c} bets placed`,
+    },
+    {
+      href: "/admin/play-in",
+      icon: "school",
+      title: "Play-in",
+      body: "David vs Goliath pairing",
+    },
+    {
+      href: "/admin/timing",
+      icon: "schedule",
+      title: "Timing",
+      body: "Round + betting close",
+    },
+    {
+      href: "/admin/overrides",
+      icon: "tune",
+      title: "Overrides",
+      body: "Bankroll, pots, battle reversals",
+    },
+    {
+      href: "/admin/settlement",
+      icon: "receipt_long",
+      title: "Settlement",
+      body: "Finalize + CSV export",
+    },
+    {
+      href: "/admin/bankroll",
+      icon: "account_balance_wallet",
+      title: "Bankroll",
+      body: "Live per-participant",
+    },
+    {
+      href: "/admin/audit",
+      icon: "fact_check",
+      title: "Audit",
+      body: "Money conservation",
+    },
+  ];
+
   return (
-    <main className="px-6 max-w-7xl mx-auto space-y-10">
+    <main className="space-y-8">
       <header>
         <div className="flex items-center gap-2 mb-2">
           <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
@@ -72,38 +117,29 @@ export default function AdminPage() {
         <h1 className="font-headline text-5xl md:text-6xl font-black tracking-tighter uppercase">
           Admin
         </h1>
-        <p className="text-on-surface-variant mt-3 max-w-2xl">
-          Control surfaces for Wednesday setup through Friday settlement. Each
-          section below is a scaffolded route ready to be wired to the
-          appropriate server actions and Drizzle queries.
-        </p>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {SECTIONS.map((s) => (
+      <AuditCard />
+
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {tiles.map((t) => (
           <Link
-            key={s.href}
-            href={s.href}
+            key={t.href}
+            href={t.href}
             className="group bg-surface-container-low hover:bg-surface-container p-6 rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-colors"
           >
             <div className="flex items-center justify-between mb-4">
               <span className="material-symbols-outlined filled text-primary">
-                {s.icon}
+                {t.icon}
               </span>
-              <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
-                {s.status}
-              </span>
-            </div>
-            <h3 className="font-headline text-lg font-bold mb-2">{s.title}</h3>
-            <p className="text-sm text-on-surface-variant leading-snug">
-              {s.body}
-            </p>
-            <div className="mt-4 text-[10px] uppercase tracking-widest font-bold text-primary flex items-center gap-2 group-hover:gap-4 transition-all">
-              Open
-              <span className="material-symbols-outlined text-xs">
+              <span className="material-symbols-outlined text-xs text-outline">
                 arrow_forward
               </span>
             </div>
+            <h3 className="font-headline text-lg font-bold mb-1">{t.title}</h3>
+            <p className="text-sm text-on-surface-variant leading-snug">
+              {t.body}
+            </p>
           </Link>
         ))}
       </section>

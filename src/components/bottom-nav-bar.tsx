@@ -4,20 +4,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
 
-const BOTTOM_NAV = [
-  { href: "/", label: "Dashboard", icon: "dashboard" },
+type Role = "participant" | "organizer" | "judge";
+
+const BASE_NAV = [
+  { href: "/", label: "Home", icon: "dashboard" },
   { href: "/bracket", label: "Bracket", icon: "account_tree" },
   { href: "/matchup", label: "Matchup", icon: "stadium" },
   { href: "/betting", label: "Betting", icon: "monetization_on" },
   { href: "/prizes", label: "Prizes", icon: "emoji_events" },
 ] as const;
 
-export function BottomNavBar() {
+export function BottomNavBar({ role = "participant" }: { role?: Role }) {
   const pathname = usePathname();
+  const nav = [...BASE_NAV] as { href: string; label: string; icon: string }[];
+  if (role === "organizer") {
+    nav.push({ href: "/admin", label: "Admin", icon: "tune" });
+  } else if (role === "judge") {
+    nav.push({ href: "/judge", label: "Judge", icon: "gavel" });
+  }
+
   return (
     <nav className="fixed bottom-0 left-0 w-full z-50 bg-[#121416]/90 backdrop-blur-2xl border-t border-primary-container/15 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:hidden">
       <div className="flex justify-around items-center pt-3 pb-6 px-4">
-        {BOTTOM_NAV.map((item) => {
+        {nav.map((item) => {
           const isActive =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (

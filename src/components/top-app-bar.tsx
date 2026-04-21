@@ -1,15 +1,28 @@
 import Link from "next/link";
-import Image from "next/image";
 import { NavLink } from "./nav-link";
+import { UserAvatar } from "./user-avatar";
 import { signOut } from "@/auth";
 
-const NAV_ITEMS = [
+type Role = "participant" | "organizer" | "judge";
+
+const BASE_ITEMS = [
   { href: "/", label: "Dashboard" },
   { href: "/bracket", label: "Bracket" },
   { href: "/matchup", label: "Matchup" },
   { href: "/betting", label: "Betting" },
   { href: "/prizes", label: "Prizes" },
 ] as const;
+
+function itemsForRole(role: Role) {
+  const items = [...BASE_ITEMS] as { href: string; label: string }[];
+  if (role === "judge" || role === "organizer") {
+    items.push({ href: "/judge", label: "Judge" });
+  }
+  if (role === "organizer") {
+    items.push({ href: "/admin", label: "Admin" });
+  }
+  return items;
+}
 
 type TopAppBarProps = {
   bankroll?: number;
@@ -18,15 +31,11 @@ type TopAppBarProps = {
     email: string;
     image: string | null;
   };
+  role?: Role;
 };
 
-export function TopAppBar({ bankroll = 1000, user }: TopAppBarProps) {
-  const initials = (user?.name ?? "T")
-    .split(" ")
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .slice(0, 2)
-    .join("");
-
+export function TopAppBar({ bankroll = 1000, user, role = "participant" }: TopAppBarProps) {
+  const navItems = itemsForRole(role);
   return (
     <nav className="fixed top-0 w-full z-50 bg-[#121416]/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,208,180,0.05)]">
       <div className="flex justify-between items-center px-6 py-4 w-full max-w-7xl mx-auto">
@@ -41,8 +50,8 @@ export function TopAppBar({ bankroll = 1000, user }: TopAppBarProps) {
           </span>
         </Link>
         <div className="flex items-center gap-6">
-          <div className="hidden md:flex gap-8 font-headline text-sm font-bold tracking-tight uppercase">
-            {NAV_ITEMS.map((item) => (
+          <div className="hidden md:flex gap-6 font-headline text-sm font-bold tracking-tight uppercase">
+            {navItems.map((item) => (
               <NavLink key={item.href} href={item.href}>
                 {item.label}
               </NavLink>
@@ -56,23 +65,7 @@ export function TopAppBar({ bankroll = 1000, user }: TopAppBarProps) {
 
           {user && (
             <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-full border-2 border-primary/40 overflow-hidden bg-surface-container-highest flex items-center justify-center text-xs font-headline font-bold text-primary"
-                title={user.email}
-              >
-                {user.image ? (
-                  <Image
-                    src={user.image}
-                    alt={user.name}
-                    width={40}
-                    height={40}
-                    className="w-full h-full object-cover"
-                    unoptimized
-                  />
-                ) : (
-                  initials
-                )}
-              </div>
+              <UserAvatar src={user.image} name={user.name} email={user.email} />
               <form
                 action={async () => {
                   "use server";

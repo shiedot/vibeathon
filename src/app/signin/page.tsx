@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 
@@ -8,12 +7,12 @@ type SignInPageProps = {
 
 const ERROR_COPY: Record<string, { title: string; body: string }> = {
   AccessDenied: {
-    title: "Wrong domain.",
-    body: "Only @travelai.com Google Workspace accounts can enter the Vibe-a-thon. Switch accounts and try again.",
+    title: "Sign-in not allowed.",
+    body: "This Google account isn’t permitted for this app. Try another account or ask the organizers for access.",
   },
   Configuration: {
     title: "Config issue on our side.",
-    body: "OAuth config is incomplete. Ping the organizers — they'll fix the server env.",
+    body: "OAuth config is incomplete. Ping shie@ to fix the server env.",
   },
   Verification: {
     title: "Couldn't verify that login.",
@@ -45,11 +44,6 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             Enter the <br />
             <span className="text-primary">Vibe-a-thon</span>
           </h1>
-          <p className="text-on-surface-variant mt-6 text-sm leading-relaxed">
-            Sign in with your TravelAI Google account. Only{" "}
-            <span className="text-primary font-bold">@travelai.com</span>{" "}
-            Travellers are on the roster.
-          </p>
         </div>
 
         {copy && (
@@ -75,13 +69,6 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             Continue with Google
           </button>
         </form>
-
-        <p className="mt-8 text-center text-[10px] uppercase tracking-widest text-on-surface-variant">
-          By signing in you accept the rules in{" "}
-          <Link href="/" className="text-primary hover:underline">
-            vibeathon_participant_rules.md
-          </Link>
-        </p>
       </div>
     </main>
   );

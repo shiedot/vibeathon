@@ -8,6 +8,13 @@
       "when": 1776699279669,
       "tag": "0000_charming_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776711781433,
+      "tag": "0001_funny_ma_gnuci",
+      "breakpoints": true
     }
   ]
 }

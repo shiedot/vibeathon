@@ -1,6 +1,6 @@
 # The Vibe-a-thon
 
-Full Throttle 2026 — TravelAI Bangladesh tournament app. Next.js 15 (App Router)
+Full Throttle 2026 — TravelAI Bangladesh tournament app. Next.js 16 (App Router)
 + TypeScript + Tailwind v4 + Drizzle ORM + Neon Postgres, deployable on Vercel.
 
 One question in every line of code:
@@ -11,80 +11,68 @@ One question in every line of code:
 
 - **Next.js 16 / React 19** — App Router, server components by default
 - **TypeScript** — strict
-- **Tailwind CSS v4** — design system tokens live in `src/app/globals.css` under
-  `@theme`. Ported from the provided mockups (teal `#45edcf` primary, tertiary
-  `#ffce5e`, surface `#121416`, Space Grotesk + Inter + Material Symbols).
-- **Drizzle ORM + Neon serverless** — Postgres schema in `src/db/schema.ts`
-  mirrors §10 of the app spec
-- **Deployed on Vercel** — Neon's HTTP driver is edge-friendly
+- **Tailwind CSS v4** — design system tokens in `src/app/globals.css`
+- **Drizzle ORM + pg** — Postgres schema in `src/db/schema.ts`
+- **NextAuth v5 (Google)** — database sessions via `@auth/drizzle-adapter`
+- **SWR** — 2–3 s polling for every live surface
+- **Vitest** — pure-lib unit tests
 
 ## Routes
 
-| Route        | Purpose                                                       |
-| ------------ | ------------------------------------------------------------- |
-| `/`          | Dashboard — round countdown, bankroll, Traveler Test, pulse   |
-| `/bracket`   | Pod bracket visualisation + insights                          |
-| `/matchup`   | Head-to-head matchup + consensus voting                       |
-| `/betting`   | Parimutuel betting hub, wager control, live exposure          |
-| `/prizes`    | Grand Champion, scout leaderboard, named prizes, Best Coach   |
-| `/admin`     | Organizer console (stubs for roster, pods, battles, etc.)     |
+| Route | Purpose |
+|---|---|
+| `/` | Dashboard — current round, bankroll, recent ledger |
+| `/matchup` | My current matchup + vote button |
+| `/bracket` | Full bracket (live) |
+| `/betting` | Parimutuel hub; place/lock bets |
+| `/prizes` | Prize ledger + leaderboards |
+| `/nominate` | Best Coach nominations (max 3/participant) |
+| `/history` | Personal ₿ ledger |
+| `/judge`, `/judge/deadlocks`, `/judge/vote`, `/judge/coaches` | Judge console |
+| `/admin`, `/admin/roster`, `/admin/pods`, `/admin/play-in`, `/admin/battles`, `/admin/betting`, `/admin/bankroll`, `/admin/timing`, `/admin/audit`, `/admin/overrides`, `/admin/settlement` | Organizer console |
+| `/spectator` | Public big-screen view (QF onward public) |
 
 ## Getting started
 
 ```bash
 pnpm install
-cp .env.example .env.local    # paste your Neon connection string
-pnpm db:generate              # create SQL from schema
-pnpm db:push                  # apply to Neon (or db:migrate for versioned)
+cp .env.example .env        # fill in Neon + Google + ORGANIZER_EMAILS
+pnpm db:generate            # generate SQL from src/db/schema.ts
+pnpm db:migrate             # apply SQL migrations to Neon
 pnpm dev
+pnpm test                   # vitest unit suites
 ```
 
-Open <http://localhost:3000>.
+Open <http://localhost:3000>. Sign in with an email listed in
+`ORGANIZER_EMAILS` to get the admin dashboard.
 
-## Core logic
+## Money math
 
-Pure TypeScript, unit-testable, no React deps:
+Pure TypeScript in `src/lib/bankroll.ts`:
 
-- `src/lib/bankroll.ts` — `resolveBattle`, `projectWinnerPot`,
-  `settleParimutuel`, `canBet`. Implements §3 (80/20 split) and §6
-  (parimutuel + eligibility) of the spec.
+- `resolveBattle({winnerTeamPot, loserTeamPot})` — winner pot =
+  `round(pool × 0.8)`, losing captain's consolation = `pool − pot`.
+- `projectWinnerPot(1000, n)` matches the spec table 5/6 rows exactly (R1 →
+  1,600; R2 → 2,560; R3 → 4,096; QF → 6,554; SF → 10,486; Final → **16,778**,
+  one ₿ above the spec's headline 16,777 — the spec's six-row table is not
+  internally consistent under any single rounding rule).
+- `settleParimutuel(bets, winnerId)` — losers' pool goes proportionally to
+  winning bettors; leftover ₿ sweeps to the largest winner to conserve money.
 
-The pot progression from the spec (§3) is enforced by `projectWinnerPot`:
+Every ₿ movement is recorded in `bankroll_ledger` with the actor's user ID.
+`/admin/audit` continuously verifies
+`Σ bankrolls + Σ team_pots + Σ open_bet_stakes == 1000 × participants +
+organizer bonuses`.
 
-| Round | Team size | `projectWinnerPot(1000, rounds)` |
-| ----- | --------- | -------------------------------- |
-| R1    | 2         | 1,600                            |
-| R2    | 4         | 2,560                            |
-| R3    | 8         | 4,096                            |
-| QF    | 16        | 6,553                            |
-| SF    | 32        | 10,485                           |
-| Final | 64        | 16,776                           |
+## Runbook
 
-(₿ rounds down to conserve money — leftovers go to losing-captain consolation.)
-
-## Database
-
-Drizzle schema in `src/db/schema.ts` covers every entity from §10 of the spec:
-`participants`, `teams`, `team_members`, `battles`, `consensus_votes`, `bets`,
-`coach_nominations`, `prize_ledger`.
-
-Enums mirror spec vocab: `setup_status`, `battle_status`, `play_in_role`, etc.
-All money is stored as integer ₿ (1 ₿ = ৳1).
+See [RUNBOOK.md](./RUNBOOK.md) for the full Wednesday-through-Friday procedure,
+including what to do when something breaks.
 
 ## Deploy to Vercel
 
 1. Push to GitHub.
-2. Import on Vercel, add `DATABASE_URL` to project env vars.
-3. Vercel detects Next.js automatically. Neon's HTTP driver works in the edge
-   runtime out of the box.
-
-## What's stubbed vs done
-
-**Done:** design system, layout, 5 participant pages, admin index, Drizzle
-schema, bankroll engine.
-
-**Stubbed (next):** auth, CSV ingestion, pod/seeding logic, battle lifecycle
-mutations, bet placement + settlement actions, realtime (consider PartyKit or
-Pusher for live matchup/bet pool updates).
-
-See `vibeathon_app_spec.md` §13 for the MVP build order.
+2. Import on Vercel, add env vars: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`,
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ORGANIZER_EMAILS`, optionally
+   `GOOGLE_ALLOWED_DOMAIN`.
+3. Run `pnpm db:migrate` once against the target database.

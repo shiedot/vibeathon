@@ -1,9 +1,37 @@
 import Link from "next/link";
+import { desc, eq } from "drizzle-orm";
+import { getCurrentParticipant } from "@/server/current-participant";
+import { db } from "@/db/client";
+import { bankrollLedger, roundConfig } from "@/db/schema";
+import { Countdown } from "@/components/countdown";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const me = await getCurrentParticipant();
+  if (!me) return null; // layout guard handles redirect
+
+  const [currentRound] = await db
+    .select()
+    .from(roundConfig)
+    .orderBy(desc(roundConfig.roundNumber))
+    .limit(1);
+
+  const recentLedger = await db
+    .select({
+      id: bankrollLedger.id,
+      kind: bankrollLedger.kind,
+      delta: bankrollLedger.delta,
+      reason: bankrollLedger.reason,
+      createdAt: bankrollLedger.createdAt,
+    })
+    .from(bankrollLedger)
+    .where(eq(bankrollLedger.participantId, me.participant.id))
+    .orderBy(desc(bankrollLedger.createdAt))
+    .limit(8);
+
   return (
     <main className="px-6 max-w-7xl mx-auto space-y-8">
-      {/* Hero / Round Counter */}
       <section className="relative overflow-hidden rounded-xl bg-surface-container-low p-8 md:p-12 border-l-2 border-primary shadow-[0_0_20px_rgba(69,237,207,0.15)]">
         <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
           <div className="w-full h-full bg-[radial-gradient(circle_at_center,var(--color-primary),transparent_70%)]" />
@@ -11,18 +39,21 @@ export default function DashboardPage() {
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
           <div>
             <span className="font-label text-xs uppercase tracking-[0.2em] text-primary-fixed-dim font-bold mb-2 block">
-              Current Engagement
+              {currentRound ? "Current round" : "Pre-event"}
             </span>
             <h1 className="font-headline text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none">
-              Round 1 <br />
-              <span className="text-outline">Solo Sprint</span>
+              {currentRound ? currentRound.label : "Awaiting kickoff"}
             </h1>
           </div>
-          <CountdownCard hours={4} minutes={42} seconds={18} />
+          <div className="bg-surface-container-highest/50 backdrop-blur-md p-6 rounded-lg border border-outline-variant/30 min-w-[260px]">
+            <Countdown
+              target={currentRound?.endsAt ?? null}
+              label="Round ends in"
+            />
+          </div>
         </div>
       </section>
 
-      {/* Bankroll + Traveler test */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 glass-panel p-8 rounded-xl border border-outline-variant/20 relative overflow-hidden group">
           <div className="absolute -right-8 -bottom-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
@@ -33,28 +64,32 @@ export default function DashboardPage() {
           <div className="flex justify-between items-start mb-12">
             <div>
               <h3 className="font-label text-xs uppercase tracking-widest text-gray-400 mb-1">
-                Financial HUD
+                {me.participant.name}
               </h3>
               <p className="font-headline text-2xl font-bold">
-                Portfolio Overview
+                Portfolio overview
               </p>
             </div>
             <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">
-              Live Sync
+              Live sync
             </span>
           </div>
           <div className="grid grid-cols-2 gap-8">
             <BankrollStat
-              label="Personal Bankroll"
-              amount="1,000 ₿"
+              label="Personal bankroll"
+              amount={`${me.participant.personalBankroll.toLocaleString()} ₿`}
               accent="primary"
               icon="trending_up"
             />
             <BankrollStat
-              label="Team Pot"
-              amount="1,000 ₿"
+              label="Setup status"
+              amount={me.participant.setupStatus.replace("_", " ")}
               accent="tertiary"
-              icon="group"
+              icon={
+                me.participant.setupStatus === "ready"
+                  ? "verified"
+                  : "pending_actions"
+              }
               border
             />
           </div>
@@ -79,10 +114,10 @@ export default function DashboardPage() {
             </p>
           </div>
           <Link
-            href="/about"
+            href="/nominate"
             className="mt-8 text-[10px] uppercase tracking-widest font-bold text-tertiary flex items-center gap-2 hover:gap-4 transition-all"
           >
-            Review core values
+            Nominate your coach
             <span className="material-symbols-outlined text-xs">
               arrow_forward
             </span>
@@ -90,92 +125,68 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Quick links */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <QuickLink
+          href="/matchup"
+          icon="stadium"
+          label="My matchup"
+          hint="Live head-to-head"
+        />
         <QuickLink
           href="/bracket"
           icon="account_tree"
-          label="Global Bracket"
-          hint="64 \u2192 32 \u2192 16 \u2192 8 \u2192 4 \u2192 2 \u2192 1"
+          label="Bracket"
+          hint="Full tournament tree"
         />
         <QuickLink
           href="/betting"
           icon="monetization_on"
-          label="Betting Floor"
-          hint="Parimutuel pool, half-round bet close"
+          label="Betting"
+          hint="Parimutuel, halfway cutoff"
         />
         <QuickLink
-          href="/prizes"
-          icon="emoji_events"
-          label="Prize Ledger"
-          hint="₿16,777 Grand Champion pot + ৳292,800 named"
+          href="/history"
+          icon="receipt_long"
+          label="My ledger"
+          hint="Every ₿ movement"
         />
       </section>
 
-      {/* Live pulse */}
       <section>
         <h2 className="font-label text-xs uppercase tracking-[0.3em] font-black mb-6 text-gray-500">
-          Live Network Pulse
+          Recent ₿ movement
         </h2>
-        <div className="space-y-3">
-          <PulseItem
-            time="14:22:01"
-            accent="primary"
-            text={
-              <>
-                Player <span className="text-primary">k0de_wizard</span> placed
-                a 250 ₿ bet on Round 1
-              </>
-            }
-            status="Verified"
-          />
-          <PulseItem
-            time="14:18:45"
-            accent="tertiary"
-            text={
-              <>
-                Team <span className="text-tertiary">Nebula</span> submitted a
-                new build for &lsquo;Traveler Test&rsquo;
-              </>
-            }
-            status="Pending Review"
-          />
-        </div>
+        {recentLedger.length === 0 ? (
+          <div className="p-6 rounded-lg bg-surface-container-low text-on-surface-variant text-sm">
+            No ledger entries yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recentLedger.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex items-center justify-between p-4 rounded-lg bg-surface-container-low border-l-2 border-primary/40"
+              >
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
+                    {entry.kind.replace("_", " ")}
+                  </div>
+                  <div className="text-sm font-medium mt-1">{entry.reason}</div>
+                </div>
+                <div
+                  className={`font-headline text-xl font-bold tabular-nums ${
+                    entry.delta >= 0 ? "text-primary" : "text-tertiary"
+                  }`}
+                >
+                  {entry.delta >= 0 ? "+" : ""}
+                  {entry.delta.toLocaleString()} ₿
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </main>
-  );
-}
-
-function CountdownCard(props: {
-  hours: number;
-  minutes: number;
-  seconds: number;
-}) {
-  return (
-    <div className="bg-surface-container-highest/50 backdrop-blur-md p-6 rounded-lg border border-outline-variant/30 min-w-[260px]">
-      <span className="font-label text-[10px] uppercase tracking-widest text-gray-400 mb-4 block">
-        Submission closes in
-      </span>
-      <div className="flex gap-4 font-headline text-3xl font-bold">
-        {(
-          [
-            ["Hours", props.hours],
-            ["Mins", props.minutes],
-            ["Secs", props.seconds],
-          ] as const
-        ).map(([label, value], idx) => (
-          <div key={label} className="flex items-start gap-4">
-            <div className="flex flex-col items-center">
-              <span>{String(value).padStart(2, "0")}</span>
-              <span className="text-[10px] uppercase text-primary tracking-tighter">
-                {label}
-              </span>
-            </div>
-            {idx < 2 && <span className="text-outline-variant">:</span>}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -234,32 +245,5 @@ function QuickLink(props: {
         chevron_right
       </span>
     </Link>
-  );
-}
-
-function PulseItem(props: {
-  time: string;
-  accent: "primary" | "tertiary";
-  text: React.ReactNode;
-  status: string;
-}) {
-  const border =
-    props.accent === "primary" ? "border-primary/40" : "border-tertiary/40";
-  const timeColor =
-    props.accent === "primary" ? "text-primary" : "text-tertiary";
-  return (
-    <div
-      className={`flex items-center justify-between p-4 rounded-lg bg-surface-container-low border-l-2 ${border}`}
-    >
-      <div className="flex items-center gap-4">
-        <span className={`text-[10px] font-mono ${timeColor} opacity-50`}>
-          {props.time}
-        </span>
-        <p className="text-sm font-medium">{props.text}</p>
-      </div>
-      <span className="text-[10px] uppercase font-bold text-gray-600">
-        {props.status}
-      </span>
-    </div>
   );
 }

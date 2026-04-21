@@ -1,8 +1,14 @@
 /**
  * Vibe-a-thon data model.
  *
- * Mirrors §10 of `vibeathon_app_spec.md`. All monetary values are stored as
- * integer TravellerBux (₿). Conversion: 1 ₿ = ৳1.
+ * Mirrors §10 of `vibeathon_app_spec.md` with hardening for a live event:
+ *
+ * - `bankroll_ledger`: append-only ₿ movement audit; invariant `Σ delta == 0`
+ *   across all rows (ignoring organizer-bonus rows which are tagged).
+ * - `round_config`: per-round timing the admin can nudge.
+ * - Role enum on participants so we can gate admin/judge UI on the same model.
+ *
+ * All monetary values are stored as integer TravellerBux (₿). 1 ₿ = ৳1.
  */
 import type { AdapterAccountType } from "next-auth/adapters";
 import {
@@ -22,7 +28,7 @@ import {
 /* ---------------------------------------------------------------------------
  * Auth.js (next-auth v5) tables.
  * Shape mandated by @auth/drizzle-adapter. We link a participant row to a user
- * row via `participants.user_id` (added below).
+ * row via `participants.user_id` (set at sign-in by email auto-match).
  * ------------------------------------------------------------------------ */
 export const users = pgTable("users", {
   id: text("id")
@@ -107,6 +113,12 @@ export const setupStatusEnum = pgEnum("setup_status", [
   "ready",
 ]);
 
+export const participantRoleEnum = pgEnum("participant_role", [
+  "participant",
+  "organizer",
+  "judge",
+]);
+
 export const playInRoleEnum = pgEnum("play_in_role", [
   "junior",
   "senior_volunteer",
@@ -149,6 +161,19 @@ export const redemptionEnum = pgEnum("redemption_method", [
   "cash_equivalent",
 ]);
 
+export const ledgerKindEnum = pgEnum("ledger_kind", [
+  "seed", // initial 1000 ₿ personal bankroll granted
+  "stake", // participant bankroll -> team pot at R1
+  "win_pot", // team pot credited after battle win
+  "consol", // losing captain's 20% consolation into personal bankroll
+  "bet_place", // personal bankroll -> bet escrow
+  "bet_payout", // bet escrow -> personal bankroll on win
+  "bet_refund", // bet escrow -> personal bankroll (no-contest or admin)
+  "admin_override",
+  "play_in_bonus", // mentor-honor / learner-bankroll (organizer-funded)
+  "settlement", // final prize payout
+]);
+
 /* ---------------------------------------------------------------------------
  * Participants
  * ------------------------------------------------------------------------ */
@@ -161,14 +186,17 @@ export const participants = pgTable("participants", {
     .unique(),
 
   name: text("name").notNull(),
+  email: text("email").notNull().unique(),
   department: text("department").notNull(),
   employeeId: varchar("employee_id", { length: 64 }).notNull().unique(),
 
+  role: participantRoleEnum("role").notNull().default("participant"),
+
   yearsCoding: integer("years_coding").notNull().default(0),
   comfortLevel: integer("comfort_level").notNull().default(1), // 1-4
-  primaryStack: text("primary_stack").notNull(),
-  toolOfChoice: text("tool_of_choice").notNull(),
-  licenseStatus: text("license_status").notNull(),
+  primaryStack: text("primary_stack").notNull().default(""),
+  toolOfChoice: text("tool_of_choice").notNull().default(""),
+  licenseStatus: text("license_status").notNull().default(""),
   toolInstalledTested: boolean("tool_installed_tested").notNull().default(false),
   completedTestPr: boolean("completed_test_pr").notNull().default(false),
   shippingConfidence: integer("shipping_confidence").notNull().default(1), // 1-5
@@ -187,21 +215,18 @@ export const participants = pgTable("participants", {
   playInRole: playInRoleEnum("play_in_role"),
   playInResult: playInResultEnum("play_in_result"),
 
-  // bonuses from play-in, paid from organizer pot at settlement.
   mentorHonorBonus: integer("mentor_honor_bonus").notNull().default(0),
   learnerBankroll: integer("learner_bankroll").notNull().default(0),
 
-  // current team + captaincy denormalised for fast reads. Source of truth is
-  // `teams.captain_id` / `teams.members`.
+  // Current team / captaincy denormalised for fast reads; source of truth is
+  // `teams.captain_id` and `team_members`.
   currentTeamId: uuid("current_team_id"),
   personalBankroll: integer("personal_bankroll").notNull().default(1000),
 
-  // the root captain of the R1 team this Traveller started on; used to
-  // enforce bet-eligibility ("lineage broken" = current_team.lineage_root !=
+  // Root captain of the R1 team this Traveller started on; enforces
+  // bet-eligibility ("lineage broken" = current_team.lineage_root_captain !=
   // participant.r1_lineage_root_id).
   r1LineageRootId: uuid("r1_lineage_root_id"),
-
-  // the team that just eliminated this Traveller (nullable while active).
   eliminatedByTeamId: uuid("eliminated_by_team_id"),
 
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -222,14 +247,15 @@ export const teams = pgTable("teams", {
   captainId: uuid("captain_id").notNull(),
   teamPot: integer("team_pot").notNull().default(0),
 
-  // parent teams that merged to form this one; empty for R1 solo teams.
+  // Parent teams that merged to form this one; empty for R1 solo teams.
   parentTeamIds: jsonb("parent_team_ids").$type<string[]>().notNull().default([]),
 
-  // the original R1 captain whose lineage this team descends from. Used for
-  // the betting-eligibility check in §6.
+  // Original R1 captain whose lineage this team descends from; used by §6
+  // betting-eligibility.
   lineageRootCaptainId: uuid("lineage_root_captain_id").notNull(),
 
   isActive: boolean("is_active").notNull().default(true),
+  displayName: text("display_name"),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -237,8 +263,7 @@ export const teams = pgTable("teams", {
 });
 
 /**
- * Participant <-> team membership. A participant can only belong to exactly one
- * team per round, but history is preserved here.
+ * Participant <-> team membership. History preserved via leftAt.
  */
 export const teamMembers = pgTable(
   "team_members",
@@ -277,6 +302,10 @@ export const battles = pgTable("battles", {
   scheduledStart: timestamp("scheduled_start", { withTimezone: true }).notNull(),
   actualStart: timestamp("actual_start", { withTimezone: true }),
   actualEnd: timestamp("actual_end", { withTimezone: true }),
+
+  // Persisted so betting-close math remains stable even if round config is
+  // later edited.
+  roundDurationMinutes: integer("round_duration_minutes").notNull().default(60),
   bettingClosesAt: timestamp("betting_closes_at", { withTimezone: true }).notNull(),
 
   stakeA: integer("stake_a").notNull().default(0),
@@ -285,6 +314,22 @@ export const battles = pgTable("battles", {
 
   winnerTeamId: uuid("winner_team_id").references(() => teams.id),
   judgeInterventionNote: text("judge_intervention_note"),
+
+  // Judge votes for SF/Final per §5 (1 judge vote = 1 member vote, max 3).
+  judgeVotes: jsonb("judge_votes")
+    .$type<{ judgeId: string; teamVotedFor: string }[]>()
+    .notNull()
+    .default([]),
+
+  // Snapshot of pre-resolve membership for reverseBattleResolution().
+  preResolveSnapshot: jsonb("pre_resolve_snapshot").$type<{
+    teamAPot: number;
+    teamBPot: number;
+    teamAMembers: string[];
+    teamBMembers: string[];
+    teamACaptain: string;
+    teamBCaptain: string;
+  } | null>(),
 
   status: battleStatusEnum("status").notNull().default("pending"),
 
@@ -334,6 +379,7 @@ export const bets = pgTable("bets", {
     .notNull()
     .defaultNow(),
   locked: boolean("locked").notNull().default(false),
+  refunded: boolean("refunded").notNull().default(false),
   payoutAmount: integer("payout_amount"),
 });
 
@@ -350,6 +396,41 @@ export const coachNominations = pgTable("coach_nominations", {
     .references(() => participants.id, { onDelete: "cascade" }),
   reason: text("reason").notNull(),
   submittedAt: timestamp("submitted_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ---------------------------------------------------------------------------
+ * Round configuration (lets admin nudge timings live)
+ * ------------------------------------------------------------------------ */
+export const roundConfig = pgTable("round_config", {
+  roundNumber: integer("round_number").primaryKey(),
+  label: text("label").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  teamSize: integer("team_size").notNull(),
+  isPod: boolean("is_pod").notNull().default(false),
+});
+
+/* ---------------------------------------------------------------------------
+ * Bankroll ledger — append-only ₿ movement audit
+ * ------------------------------------------------------------------------ */
+export const bankrollLedger = pgTable("bankroll_ledger", {
+  id: serial("id").primaryKey(),
+  kind: ledgerKindEnum("kind").notNull(),
+  participantId: uuid("participant_id").references(() => participants.id, {
+    onDelete: "set null",
+  }),
+  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+  battleId: uuid("battle_id").references(() => battles.id, { onDelete: "set null" }),
+  betId: uuid("bet_id").references(() => bets.id, { onDelete: "set null" }),
+  delta: integer("delta").notNull(),
+  reason: text("reason").notNull(),
+  byUserId: text("by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
@@ -394,3 +475,7 @@ export type Bet = typeof bets.$inferSelect;
 export type NewBet = typeof bets.$inferInsert;
 export type CoachNomination = typeof coachNominations.$inferSelect;
 export type PrizeLedgerRow = typeof prizeLedger.$inferSelect;
+export type BankrollLedgerRow = typeof bankrollLedger.$inferSelect;
+export type NewBankrollLedgerRow = typeof bankrollLedger.$inferInsert;
+export type RoundConfigRow = typeof roundConfig.$inferSelect;
+export type NewRoundConfigRow = typeof roundConfig.$inferInsert;
