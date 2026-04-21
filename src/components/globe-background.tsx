@@ -234,12 +234,18 @@ export function GlobeBackground({
     const alpha = Math.pow(progress, 0.5);
     const scale = d3.scaleLinear().domain([0, 1]).range([200, 120]);
 
+    // Nudge the sphere down while we're in orthographic / near-orthographic
+    // mode so page headings above the globe stay readable. The offset
+    // interpolates back to 0 as the map flattens, otherwise the
+    // equirectangular projection would clip against the bottom of the viewBox.
+    const yOffset = (1 - alpha) * 70;
+
     const projection = interpolateProjection(
       d3.geoOrthographicRaw as unknown as RawProjection,
       d3.geoEquirectangularRaw as unknown as RawProjection,
     )
       .scale(scale(alpha))
-      .translate([WIDTH / 2, HEIGHT / 2])
+      .translate([WIDTH / 2, HEIGHT / 2 + yOffset])
       .rotate([rotation[0], rotation[1]])
       .precision(0.1);
 
