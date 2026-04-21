@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { NavLink } from "./nav-link";
 import { UserAvatar } from "./user-avatar";
@@ -39,15 +40,16 @@ export function TopAppBar({ bankroll = 1000, user, role = "participant" }: TopAp
   return (
     <nav className="fixed top-0 w-full z-50 bg-[#121416]/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,208,180,0.05)]">
       <div className="flex justify-between items-center px-6 py-4 w-full max-w-7xl mx-auto">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-primary/40 flex items-center justify-center bg-surface-container-highest">
-            <span className="material-symbols-outlined filled text-primary text-lg">
-              rocket_launch
-            </span>
-          </div>
-          <span className="text-xl font-black text-primary-container tracking-tighter font-headline uppercase">
-            The Vibe-a-thon
-          </span>
+        <Link href="/" aria-label="The Vibe-a-thon — home" className="flex items-center">
+          <Image
+            src="/header_logo.svg"
+            alt="The Vibe-a-thon"
+            width={174}
+            height={32}
+            priority
+            unoptimized
+            className="h-8 w-auto"
+          />
         </Link>
         <div className="flex items-center gap-6">
           <div className="hidden md:flex gap-6 font-headline text-sm font-bold tracking-tight uppercase">

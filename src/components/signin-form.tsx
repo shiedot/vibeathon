@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useState } from "react";
 import { signIn } from "next-auth/react";
 import { GlobeBackground } from "@/components/globe-background";
@@ -54,6 +56,22 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
         strokeOpacity={0.55}
       />
 
+      <Link
+        href="/"
+        aria-label="The Vibe-a-thon — home"
+        className="pointer-events-auto absolute top-6 left-6 z-10 inline-flex"
+      >
+        <Image
+          src="/header_logo.svg"
+          alt="The Vibe-a-thon"
+          width={174}
+          height={32}
+          priority
+          unoptimized
+          className="h-8 w-auto"
+        />
+      </Link>
+
       {/* pointer-events-none on the wrapper lets drag events pass through to
           the globe everywhere except the inner card (re-enabled below). */}
       <div className="pointer-events-none relative flex items-center justify-center px-6 min-h-[calc(100dvh-6rem)]">
@@ -86,7 +104,7 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
             disabled={isStarting}
             className="w-full kinetic-gradient text-on-primary font-headline font-black uppercase tracking-tight py-4 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-[0_0_30px_rgba(69,237,207,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            <GoogleGlyph />
+            <FooterMark />
             {isStarting ? "Unfurling…" : "Get Started"}
           </button>
         </div>
@@ -95,19 +113,24 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
   );
 }
 
-function GoogleGlyph() {
+/**
+ * Footer/brand mark used inside the Get Started button. Inlined so `fill`
+ * reads from `currentColor`, which lets the mark pick up the button's
+ * `text-on-primary` color (dark on the green kinetic-gradient).
+ */
+function FooterMark() {
   return (
     <svg
-      width="20"
+      width="18"
       height="20"
-      viewBox="0 0 24 24"
+      viewBox="0 0 168 192"
+      fill="currentColor"
       aria-hidden
       className="shrink-0"
     >
-      <path
-        fill="#1b1b1b"
-        d="M21.35 11.1H12v2.88h5.35c-.23 1.48-1.68 4.34-5.35 4.34-3.22 0-5.85-2.66-5.85-5.93S8.78 6.46 12 6.46c1.83 0 3.06.78 3.76 1.45l2.56-2.47C16.82 3.98 14.67 3 12 3 6.98 3 2.92 7.03 2.92 12S6.98 21 12 21c6.92 0 9.44-4.84 9.44-9.2 0-.61-.05-1.07-.09-1.7z"
-      />
+      <path d="M167.829 142.38 83.7734 0 107.045 120.291l60.784 22.089z" />
+      <path d="M3.80469 146.159 167.828 146.157 52.4547 104.226 3.80469 146.159z" />
+      <path d="M92.622 64.8195 81.0074 4.78809.5 144.221 92.622 64.8195z" />
     </svg>
   );
 }
