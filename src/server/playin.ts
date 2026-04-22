@@ -56,19 +56,30 @@ async function classifyRoster() {
 export async function previewPlayIn(): Promise<{
   matchups: PlayInMatchupPreview[];
   total: number;
+  overflow: number;
 }> {
   const { juniors, seniors, total } = await classifyRoster();
-  if (total <= 64) return { matchups: [], total };
-  const matchups = generatePlayInPairings(juniors, seniors);
-  return { matchups, total };
+  const overflow = Math.max(0, total - 64);
+  if (overflow === 0) return { matchups: [], total, overflow };
+  // Cap: exactly `overflow` battles — each eliminates one person, bringing
+  // the eligible bracket down to 64. `generatePlayInPairings` already sorts
+  // juniors asc / seniors desc, so the lowest-score juniors face the highest
+  // seniors.
+  const matchups = generatePlayInPairings(juniors, seniors).slice(0, overflow);
+  return { matchups, total, overflow };
 }
 
 export async function commitPlayIn(opts: {
   scheduledStart: Date;
   byUserId: string;
 }): Promise<{ battlesCreated: number }> {
-  const { matchups } = await previewPlayIn();
+  const { matchups, overflow } = await previewPlayIn();
   if (matchups.length === 0) return { battlesCreated: 0 };
+  if (matchups.length < overflow) {
+    throw new Error(
+      `Can only generate ${matchups.length} play-in battle(s) but overflow is ${overflow}. Need ${overflow - matchups.length} more junior or senior volunteers. Mark them manually via /admin/overrides, or ask seasoned folk to volunteer as seniors (comfort≥3) or low-experience folk as juniors (comfort≤2 AND years≤2).`,
+    );
+  }
 
   let created = 0;
   await db.transaction(async (tx) => {

@@ -4,13 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { GlobeBackground } from "@/components/globe-background";
-import { enterAsParticipantAction } from "./actions";
+import {
+  sendMagicLinkAction,
+  type MagicLinkSendPayload,
+} from "./actions";
 
 type PickerParticipant = {
   id: string;
   name: string;
   department: string;
   employeeId: string;
+};
+
+type SentState = {
+  name: string;
+  payload: MagicLinkSendPayload;
 };
 
 export function ParticipantPicker({
@@ -22,6 +30,7 @@ export function ParticipantPicker({
 }) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [confirming, setConfirming] = useState<PickerParticipant | null>(null);
+  const [sent, setSent] = useState<SentState | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -43,15 +52,16 @@ export function ParticipantPicker({
 
   function onConfirm() {
     if (!confirming) return;
-    const pid = confirming.id;
+    const chosen = confirming;
     start(async () => {
-      const res = await enterAsParticipantAction(pid);
+      const res = await sendMagicLinkAction(chosen.id, callbackUrl);
       if (!res.ok) {
         setErr(res.error);
         setConfirming(null);
         return;
       }
-      window.location.href = callbackUrl;
+      setConfirming(null);
+      setSent({ name: chosen.name, payload: res.data });
     });
   }
 
@@ -86,57 +96,71 @@ export function ParticipantPicker({
 
       <div className="pointer-events-none relative flex items-center justify-center px-6 min-h-[calc(100dvh-6rem)]">
         <div className="pointer-events-auto w-full max-w-md">
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 mb-4">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="font-label text-xs tracking-[0.2em] uppercase text-primary-fixed-dim font-bold">
-                Step 2 of 2
-              </span>
-            </div>
-            <h1 className="font-headline text-5xl md:text-6xl font-black tracking-tighter uppercase leading-none">
-              <span className="text-primary">Sign in</span>
-            </h1>
-          </div>
+          {sent ? (
+            <SentCard
+              name={sent.name}
+              emailMasked={sent.payload.emailMasked}
+              devLink={sent.payload.devLink}
+              onReset={() => {
+                setSent(null);
+                setSelectedId("");
+              }}
+            />
+          ) : (
+            <>
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center gap-2 mb-4">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="font-label text-xs tracking-[0.2em] uppercase text-primary-fixed-dim font-bold">
+                    Step 2 of 2
+                  </span>
+                </div>
+                <h1 className="font-headline text-5xl md:text-6xl font-black tracking-tighter uppercase leading-none">
+                  <span className="text-primary">Sign in</span>
+                </h1>
+              </div>
 
-          {err && (
-            <div className="mb-5 p-4 rounded-xl bg-error-container/30 border border-error/40 text-on-error-container text-sm">
-              {err}
-            </div>
+              {err && (
+                <div className="mb-5 p-4 rounded-xl bg-error-container/30 border border-error/40 text-on-error-container text-sm">
+                  {err}
+                </div>
+              )}
+
+              <label className="block mb-4">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
+                  I am…
+                </span>
+                <select
+                  value={selectedId}
+                  onChange={(e) => setSelectedId(e.target.value)}
+                  className="mt-1 w-full bg-surface-container-high border border-outline-variant/30 rounded-lg px-3 py-3 text-base"
+                >
+                  <option value="" disabled>
+                    — choose your name —
+                  </option>
+                  {participants.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {p.department}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={onEnter}
+                disabled={pending || !selectedId}
+                className="w-full kinetic-gradient text-on-primary font-headline font-black uppercase tracking-tight py-4 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-[0_0_30px_rgba(69,237,207,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <FooterMark />
+                Email me a link
+              </button>
+
+              <p className="mt-6 text-[10px] text-center text-on-surface-variant uppercase tracking-widest">
+                Don&apos;t see your name? Ping the organizers.
+              </p>
+            </>
           )}
-
-          <label className="block mb-4">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
-              I am…
-            </span>
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="mt-1 w-full bg-surface-container-high border border-outline-variant/30 rounded-lg px-3 py-3 text-base"
-            >
-              <option value="" disabled>
-                — choose your name —
-              </option>
-              {participants.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} · {p.department}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="button"
-            onClick={onEnter}
-            disabled={pending || !selectedId}
-            className="w-full kinetic-gradient text-on-primary font-headline font-black uppercase tracking-tight py-4 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform shadow-[0_0_30px_rgba(69,237,207,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            <FooterMark />
-            Enter
-          </button>
-
-          <p className="mt-6 text-[10px] text-center text-on-surface-variant uppercase tracking-widest">
-            Don&apos;t see your name? Ping the organizers.
-          </p>
         </div>
       </div>
 
@@ -151,7 +175,7 @@ export function ParticipantPicker({
               Confirm
             </h2>
             <p className="text-sm text-on-surface-variant mb-1">
-              Entering as
+              We&apos;ll email a sign-in link to the address on file for
             </p>
             <div className="text-lg font-bold mb-1">{confirming.name}</div>
             <div className="text-[11px] text-on-surface-variant mb-6">
@@ -172,13 +196,69 @@ export function ParticipantPicker({
                 disabled={pending}
                 className="flex-1 py-3 rounded-lg bg-primary text-on-primary font-bold uppercase text-xs tracking-widest disabled:opacity-50"
               >
-                {pending ? "Entering…" : "Yes, that's me"}
+                {pending ? "Sending…" : "Send my link"}
               </button>
             </div>
           </div>
         </div>
       )}
     </main>
+  );
+}
+
+function SentCard({
+  name,
+  emailMasked,
+  devLink,
+  onReset,
+}: {
+  name: string;
+  emailMasked: string;
+  devLink: string | null;
+  onReset: () => void;
+}) {
+  return (
+    <div className="text-center">
+      <div className="inline-flex items-center gap-2 mb-4">
+        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+        <span className="font-label text-xs tracking-[0.2em] uppercase text-primary-fixed-dim font-bold">
+          Check your inbox
+        </span>
+      </div>
+      <h1 className="font-headline text-5xl md:text-6xl font-black tracking-tighter uppercase leading-none">
+        <span className="text-primary">Link sent</span>
+      </h1>
+      <p className="mt-6 text-sm text-on-surface-variant">
+        Hey <span className="font-bold text-on-surface">{name}</span>, we sent a
+        one-time sign-in link to
+      </p>
+      <p className="mt-1 text-base font-bold">{emailMasked}</p>
+      <p className="mt-4 text-[11px] uppercase tracking-widest text-on-surface-variant">
+        Expires in 15 minutes · single use
+      </p>
+
+      {devLink && (
+        <div className="mt-6 p-4 rounded-xl bg-surface-container-high border border-outline-variant/30 text-left">
+          <div className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant mb-2">
+            Dev mode · no mailer configured
+          </div>
+          <a
+            href={devLink}
+            className="text-xs break-all text-primary underline"
+          >
+            {devLink}
+          </a>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-8 text-[11px] uppercase tracking-widest font-bold text-on-surface-variant hover:text-on-surface"
+      >
+        ← Wrong person? Start over
+      </button>
+    </div>
   );
 }
 

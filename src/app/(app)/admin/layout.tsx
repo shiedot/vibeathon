@@ -25,10 +25,10 @@ export default async function AdminLayout({
 }) {
   const me = await getCurrentParticipant();
   if (!me) redirect("/signin?callbackUrl=/admin");
+  if (me.role !== "organizer") redirect("/");
 
   const admin = await isAdminAuthed();
-
-  if (!admin && me.role !== "organizer") {
+  if (!admin) {
     return (
       <div className="max-w-md mx-auto px-6 pt-8">
         <AdminLoginGate />

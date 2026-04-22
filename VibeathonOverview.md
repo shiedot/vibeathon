@@ -13,7 +13,7 @@ printed into every pitch/voting view.
 
 ## The Rules, In Short
 
-### You start with 1,000 TravellerBux (₿). These are real. They redeem for travel vouchers, company-paid travel, and travel-related activities. 1,000 ₿ = ৳1,000.
+### You start with 1,000 TravellerBux (₿). These are real. They redeem for travel vouchers, company-paid travel, and travel-related activities. 1,000 ₿ = ₿1,000.
 
 - Seeded automatically when R1 is committed. Every Traveller starts with
   `personalBankroll = 1000`, then immediately stakes it into their solo team
@@ -312,11 +312,11 @@ printed into every pitch/voting view.
 
 | Prize                  | Amount       | Goes to                                                                 |
 |------------------------|--------------|-------------------------------------------------------------------------|
-| Grand Champion Founder | ৳140,000     | The only Traveller who never lost.                                      |
-| Runner-Up Founder      | ৳80,000      | Captain of the losing Final team.                                       |
-| Top Scout              | ৳50,000      | Largest % bankroll growth from betting.                                 |
-| Best Coach             | ৳10,000      | Judges' choice, informed by your nominations.                           |
-| Participation Floor    | ৳200 each    | Everyone walks away with something.                                     |
+| Grand Champion Founder | ₿140,000     | The only Traveller who never lost.                                      |
+| Runner-Up Founder      | ₿80,000      | Captain of the losing Final team.                                       |
+| Top Scout              | ₿50,000      | Largest % bankroll growth from betting.                                 |
+| Best Coach             | ₿10,000      | Judges' choice, informed by your nominations.                           |
+| Participation Floor    | ₿200 each    | Everyone walks away with something.                                     |
 
 - Participant view of the prize table: [`/prizes`](https://vibeathon-alpha.vercel.app/prizes).
 - Organizer finalizes + exports:

@@ -139,7 +139,7 @@ export function SettlementClient() {
                     {r.participationFloorTaka}
                   </td>
                   <td className="p-3 text-right tabular-nums font-headline font-bold">
-                    ৳{r.totalTaka.toLocaleString()}
+                    ₿{r.totalTaka.toLocaleString()}
                   </td>
                 </tr>
               ))}

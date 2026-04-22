@@ -60,8 +60,8 @@ export async function requireParticipant(): Promise<AuthedParticipant> {
 
 /**
  * Organizer-gated actions. Caller must have picked a participant AND either
- * have the admin password cookie set OR be flagged as organizer on their
- * participant row.
+ * be flagged as organizer on their row OR be holding the admin password
+ * cookie. Both conditions must be satisfied — no bare-password bypass.
  */
 export async function requireOrganizer(): Promise<AuthedParticipant> {
   const me = await requireParticipant();

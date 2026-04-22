@@ -1,6 +1,10 @@
 import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { battles, participants, teams } from "@/db/schema";
+import {
+  PHANTOM_EMAIL_SUFFIX,
+  PHANTOM_EMPLOYEE_ID_PREFIX,
+} from "@/server/travellers";
 import { PodsClient } from "./client";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +16,40 @@ export default async function AdminPodsPage() {
     .from(battles)
     .where(eq(battles.roundNumber, 1));
 
-  const [pCount] = await db
+  const isPhantom = sql`(${participants.email} LIKE ${"%" + PHANTOM_EMAIL_SUFFIX} OR ${participants.employeeId} LIKE ${PHANTOM_EMPLOYEE_ID_PREFIX + "%"})`;
+  const isRoster = sql`${participants.employeeId} LIKE 'roster-%'`;
+  const notLostPlayIn = sql`NOT (${participants.isPlayInParticipant} = true AND ${participants.playInResult} = 'lost')`;
+  const seedable = sql`${participants.role} = 'participant' AND ${notLostPlayIn}`;
+
+  const [seedCount] = await db
     .select({ c: count() })
     .from(participants)
-    .where(
-      sql`${participants.role} = 'participant' AND NOT (${participants.isPlayInParticipant} = true AND ${participants.playInResult} = 'lost')`,
-    );
+    .where(seedable);
+
+  const [rosterCount] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${seedable} AND ${isRoster}`);
+
+  const [phantomCount] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${seedable} AND ${isPhantom}`);
+
+  const [walkInCount] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${seedable} AND NOT ${isRoster} AND NOT ${isPhantom}`);
+
+  const [organizerCount] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${participants.role} = 'organizer'`);
+
+  const [judgeCount] = await db
+    .select({ c: count() })
+    .from(participants)
+    .where(sql`${participants.role} = 'judge'`);
 
   return (
     <main className="space-y-6">
@@ -37,7 +69,14 @@ export default async function AdminPodsPage() {
       </header>
       <PodsClient
         alreadyCommitted={tCount.c > 0}
-        travellersRegistered={pCount.c}
+        travellersRegistered={seedCount.c}
+        breakdown={{
+          roster: rosterCount.c,
+          walkIns: walkInCount.c,
+          phantoms: phantomCount.c,
+          organizers: organizerCount.c,
+          judges: judgeCount.c,
+        }}
       />
     </main>
   );

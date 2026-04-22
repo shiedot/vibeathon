@@ -103,12 +103,22 @@ function formatTzLabel(tz: string, now: Date): string {
   }
 }
 
+export type SeedableBreakdown = {
+  roster: number;
+  walkIns: number;
+  phantoms: number;
+  organizers: number;
+  judges: number;
+};
+
 export function PodsClient({
   alreadyCommitted,
   travellersRegistered,
+  breakdown,
 }: {
   alreadyCommitted: boolean;
   travellersRegistered: number;
+  breakdown: SeedableBreakdown;
 }) {
   const [timeZone, setTimeZone] = useState<string>(DEFAULT_TZ);
   const [startAt, setStartAt] = useState<string>("");
@@ -325,7 +335,7 @@ export function PodsClient({
       <div className="grid md:grid-cols-[1fr_1fr_1.2fr_auto] gap-4 items-end">
         <div className="block">
           <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
-            Total Travellers registered
+            Seedable travellers
           </span>
           <div className="mt-1 w-full bg-surface-container-high border border-outline-variant/30 rounded-lg px-1 py-1 flex items-center justify-between gap-2">
             <button
@@ -350,6 +360,7 @@ export function PodsClient({
               +
             </button>
           </div>
+          <SeedableBreakdownLine breakdown={breakdown} />
         </div>
         <label className="block">
           <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">
@@ -396,7 +407,13 @@ export function PodsClient({
           <button
             type="button"
             onClick={doCommit}
-            disabled={pending || !draft || alreadyCommitted || hasErrors}
+            disabled={
+              pending ||
+              !draft ||
+              alreadyCommitted ||
+              hasErrors ||
+              (preview?.overCap ?? false)
+            }
             className="px-4 py-2 rounded-lg bg-primary text-on-primary font-bold uppercase text-xs tracking-widest disabled:opacity-40"
           >
             Commit
@@ -433,6 +450,43 @@ export function PodsClient({
 
       {preview && draft && (
         <>
+          {preview.overCap && (
+            <div className="rounded-xl bg-tertiary-container/40 border border-tertiary/40 p-4 text-sm space-y-2">
+              <div className="font-bold text-tertiary uppercase tracking-widest text-xs">
+                Speculative preview — commit blocked
+              </div>
+              <div className="text-on-surface-variant">
+                Roster has <span className="font-mono">{preview.totalEligible}</span>{" "}
+                eligible participants; cap is 64. Showing the top 64 by
+                experience score. Run play-in first to qualify the bottom tier.
+              </div>
+              {preview.belowCap.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-on-surface-variant hover:text-on-surface">
+                    {preview.belowCap.length} below cap (would need play-in)
+                  </summary>
+                  <ul className="mt-2 grid md:grid-cols-2 gap-x-4 gap-y-1">
+                    {preview.belowCap.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex justify-between gap-2"
+                      >
+                        <span>
+                          <span className="text-on-surface-variant font-mono">
+                            #{r.rank}
+                          </span>{" "}
+                          {r.name}
+                        </span>
+                        <span className="text-on-surface-variant">
+                          {r.department} · {r.experienceScore}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
           {(duplicates.length > 0 || unassigned.length > 0) && (
             <div className="rounded-xl bg-error-container/30 border border-error/40 p-4 text-sm space-y-2">
               {duplicates.map((d) => (
@@ -659,6 +713,39 @@ function MatchupSlot({
         <div className="text-[10px] text-error font-bold pl-6">
           ⚠ already in matchup #{conflictMatchups.join(", #")} — swap to fix
         </div>
+      )}
+    </div>
+  );
+}
+
+function SeedableBreakdownLine({
+  breakdown,
+}: {
+  breakdown: SeedableBreakdown;
+}) {
+  const included: string[] = [];
+  if (breakdown.roster > 0) included.push(`${breakdown.roster} roster`);
+  if (breakdown.walkIns > 0) included.push(`${breakdown.walkIns} walk-ins`);
+  if (breakdown.phantoms > 0) included.push(`${breakdown.phantoms} phantoms`);
+
+  const excluded: string[] = [];
+  if (breakdown.organizers > 0) {
+    excluded.push(`${breakdown.organizers} organizer${breakdown.organizers === 1 ? "" : "s"}`);
+  }
+  if (breakdown.judges > 0) {
+    excluded.push(`${breakdown.judges} judge${breakdown.judges === 1 ? "" : "s"}`);
+  }
+
+  if (included.length === 0 && excluded.length === 0) return null;
+
+  return (
+    <div className="mt-1 text-[10px] text-on-surface-variant leading-tight">
+      {included.length > 0 && <span>{included.join(" · ")}</span>}
+      {excluded.length > 0 && (
+        <span className="ml-1 opacity-70">
+          {included.length > 0 && "· "}
+          {excluded.join(" · ")} excluded
+        </span>
       )}
     </div>
   );

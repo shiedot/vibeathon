@@ -2,8 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { removeTravellerAction } from "../actions";
+import { removeTravellerAction, setRoleAction } from "../actions";
 import type { TravellerRow } from "@/server/travellers";
+
+type Role = TravellerRow["role"];
+const ROLES: Role[] = ["participant", "organizer", "judge"];
 
 export function TravellersClient({
   rows,
@@ -31,10 +34,16 @@ export function TravellersClient({
 
   const counts = useMemo(() => {
     const phantoms = rows.filter((r) => r.isPhantom).length;
+    const organizers = rows.filter((r) => r.role === "organizer").length;
+    const judges = rows.filter((r) => r.role === "judge").length;
+    const participants = rows.filter((r) => r.role === "participant").length;
     return {
       total: rows.length,
       phantoms,
       real: rows.length - phantoms,
+      organizers,
+      judges,
+      participants,
     };
   }, [rows]);
 
@@ -57,12 +66,34 @@ export function TravellersClient({
     });
   }
 
+  function changeRole(row: TravellerRow, next: Role) {
+    if (next === row.role) return;
+    const warn =
+      next === "organizer" || next === "judge"
+        ? `\n\n${row.name} will be excluded from seeding.`
+        : "";
+    const ok = window.confirm(
+      `Change role for ${row.name} from ${row.role} → ${next}?${warn}`,
+    );
+    if (!ok) return;
+    start(async () => {
+      const res = await setRoleAction(row.id, next);
+      if (!res.ok) setMsg(res.error);
+      else {
+        setMsg(`${row.name} is now ${next}.`);
+        router.refresh();
+      }
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4 items-end">
-        <div className="grid grid-cols-3 gap-3 flex-1">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-3 flex-1">
           <Stat label="Total" value={counts.total} />
-          <Stat label="Registered" value={counts.real} />
+          <Stat label="Seeded" value={counts.participants} />
+          <Stat label="Organizers" value={counts.organizers} />
+          <Stat label="Judges" value={counts.judges} />
           <Stat label="Phantom" value={counts.phantoms} />
         </div>
         <input
@@ -102,8 +133,11 @@ export function TravellersClient({
                 </td>
                 <td className="p-3 text-xs">{r.department}</td>
                 <td className="p-3 text-xs">
-                  <span
-                    className={`text-[10px] uppercase font-bold tracking-widest ${
+                  <select
+                    value={r.role}
+                    disabled={pending}
+                    onChange={(e) => changeRole(r, e.target.value as Role)}
+                    className={`bg-surface-container-high border border-outline-variant/30 rounded px-2 py-1 text-[10px] uppercase font-bold tracking-widest disabled:opacity-40 ${
                       r.role === "organizer"
                         ? "text-primary"
                         : r.role === "judge"
@@ -111,8 +145,12 @@ export function TravellersClient({
                           : "text-on-surface-variant"
                     }`}
                   >
-                    {r.role}
-                  </span>
+                    {ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="p-3 text-xs text-on-surface-variant">
                   {r.comfortLevel} · {r.yearsCoding}y

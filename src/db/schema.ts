@@ -12,7 +12,7 @@
  * external identity provider, so `by_user_id` on the ledger is a free-form
  * audit tag (usually the acting participant id, sometimes `"admin"`).
  *
- * All monetary values are stored as integer TravellerBux (₿). 1 ₿ = ৳1.
+ * All monetary values are stored as integer TravellerBux (₿). 1 ₿ = ₿1.
  */
 import {
   boolean,
@@ -143,6 +143,28 @@ export const participants = pgTable("participants", {
   r1LineageRootId: uuid("r1_lineage_root_id"),
   eliminatedByTeamId: uuid("eliminated_by_team_id"),
 
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ---------------------------------------------------------------------------
+ * Magic links
+ *
+ * Single-use email login tokens. We never email a participant we didn't already
+ * know about — the user picks their own row from a dropdown, we hash a token
+ * into this table, and mail it to the address on file. Verification marks the
+ * row `used_at`, so a leaked link stops working after one click.
+ * ------------------------------------------------------------------------ */
+export const magicLinks = pgTable("magic_links", {
+  id: serial("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  participantId: uuid("participant_id")
+    .notNull()
+    .references(() => participants.id, { onDelete: "cascade" }),
+  callbackUrl: text("callback_url").notNull().default("/"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -381,3 +403,5 @@ export type BankrollLedgerRow = typeof bankrollLedger.$inferSelect;
 export type NewBankrollLedgerRow = typeof bankrollLedger.$inferInsert;
 export type RoundConfigRow = typeof roundConfig.$inferSelect;
 export type NewRoundConfigRow = typeof roundConfig.$inferInsert;
+export type MagicLink = typeof magicLinks.$inferSelect;
+export type NewMagicLink = typeof magicLinks.$inferInsert;

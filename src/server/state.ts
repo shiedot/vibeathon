@@ -248,7 +248,7 @@ async function findCelebration(
         variant: "grand_champion",
         name,
         headline: "Grand Champion",
-        subheadline: `The only Traveller who never lost. ৳${prize.namedPrizeTaka.toLocaleString()}`,
+        subheadline: `The only Traveller who never lost. ₿${prize.namedPrizeTaka.toLocaleString()}`,
       };
     }
     if (prize.namedPrizeType === "runner_up") {
@@ -257,7 +257,7 @@ async function findCelebration(
         variant: "runner_up",
         name,
         headline: "Runner-Up Founder",
-        subheadline: `৳${prize.namedPrizeTaka.toLocaleString()} for carrying the losing Final captain slot.`,
+        subheadline: `₿${prize.namedPrizeTaka.toLocaleString()} for carrying the losing Final captain slot.`,
       };
     }
     if (prize.namedPrizeType === "top_scout") {
@@ -266,7 +266,7 @@ async function findCelebration(
         variant: "top_scout",
         name,
         headline: "Top Scout",
-        subheadline: `Biggest % bankroll growth. ৳${prize.namedPrizeTaka.toLocaleString()}`,
+        subheadline: `Biggest % bankroll growth. ₿${prize.namedPrizeTaka.toLocaleString()}`,
       };
     }
     if (prize.namedPrizeType === "best_coach") {
@@ -275,7 +275,7 @@ async function findCelebration(
         variant: "best_coach",
         name,
         headline: "Best Coach",
-        subheadline: `Judges' choice. ৳${prize.namedPrizeTaka.toLocaleString()}`,
+        subheadline: `Judges' choice. ₿${prize.namedPrizeTaka.toLocaleString()}`,
       };
     }
     // No named prize — fall back to the participation floor once.
@@ -285,7 +285,7 @@ async function findCelebration(
         variant: "participation",
         name,
         headline: "You walk away with something",
-        subheadline: `Participation floor · ৳${prize.participationFloorTaka.toLocaleString()}`,
+        subheadline: `Participation floor · ₿${prize.participationFloorTaka.toLocaleString()}`,
       };
     }
   }

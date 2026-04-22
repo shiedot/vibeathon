@@ -38,6 +38,22 @@ export type PodsPreview = {
     experienceScore: number;
     rank: number;
   }[];
+  /**
+   * True when the eligible roster exceeds 64 — play-in is required before
+   * commit. Preview is computed against the top-64-by-score as a speculative
+   * view so the admin can still eyeball the shape of the bracket.
+   */
+  overCap: boolean;
+  /** Total count of participants eligible before the 64-cap truncation. */
+  totalEligible: number;
+  /** Rows dropped to fit the 64-cap, ranked (lowest score first). */
+  belowCap: {
+    id: string;
+    name: string;
+    department: string;
+    experienceScore: number;
+    rank: number;
+  }[];
 };
 
 async function loadReadyRoster(): Promise<RosterEntry[]> {
@@ -77,18 +93,17 @@ async function loadReadyRoster(): Promise<RosterEntry[]> {
 export async function previewPods(): Promise<PodsPreview> {
   const roster = await loadReadyRoster();
   if (roster.length === 0) {
-    return { pods: [], r1Matchups: [], roster: [] };
+    return {
+      pods: [],
+      r1Matchups: [],
+      roster: [],
+      overCap: false,
+      totalEligible: 0,
+      belowCap: [],
+    };
   }
-  if (roster.length > 64) {
-    throw new Error(
-      `Roster has ${roster.length} ready participants; run play-in first to cap at 64.`,
-    );
-  }
-  const pods = snakeDraftPods(roster, 8);
-  const r1 = generateR1Matchups(pods);
 
-  // Rank 1..N by score desc (same ordering snake draft uses).
-  const ranked = roster
+  const rankedAll = roster
     .slice()
     .sort((a, b) => {
       if (b.experienceScore !== a.experienceScore) {
@@ -104,7 +119,36 @@ export async function previewPods(): Promise<PodsPreview> {
       department: r.department,
       experienceScore: r.experienceScore,
       rank: i + 1,
+      preferredPitchLanguage: r.preferredPitchLanguage,
     }));
+
+  const overCap = roster.length > 64;
+  // Snake-draft + R1 pairing require even pod sizes; also cap at 64 per spec.
+  // When over cap we speculatively preview on the top 64 by score so the admin
+  // can still eyeball the bracket shape; commit will refuse separately.
+  const seedable = rankedAll.slice(0, overCap ? 64 : rankedAll.length);
+  // Drop a trailing entry to keep even pairing if cap is even-divisible but
+  // current roster is odd (only possible when not over cap; e.g. 63 humans).
+  const truncated = seedable.length % 2 === 0
+    ? seedable
+    : seedable.slice(0, seedable.length - 1);
+
+  const pods = snakeDraftPods(
+    truncated.map((r) => ({
+      id: r.id,
+      name: r.name,
+      department: r.department,
+      preferredPitchLanguage: r.preferredPitchLanguage,
+      experienceScore: r.experienceScore,
+    })),
+    8,
+  );
+  const r1 = generateR1Matchups(pods);
+
+  const rankedForUi = rankedAll.map(({ preferredPitchLanguage: _pl, ...r }) => r);
+  const belowCap = overCap
+    ? rankedForUi.slice(64).slice().reverse()
+    : [];
 
   return {
     pods: pods.map((p) => ({
@@ -121,7 +165,10 @@ export async function previewPods(): Promise<PodsPreview> {
       teamA: { id: m.teamA.id, name: m.teamA.name },
       teamB: { id: m.teamB.id, name: m.teamB.name },
     })),
-    roster: ranked,
+    roster: rankedForUi.slice(0, truncated.length),
+    overCap,
+    totalEligible: rankedAll.length,
+    belowCap,
   };
 }
 
@@ -162,6 +209,11 @@ export async function commitPodsAndR1(opts: {
   const roster = await loadReadyRoster();
   if (roster.length === 0) {
     throw new Error("No ready participants to seed.");
+  }
+  if (roster.length > 64) {
+    throw new Error(
+      `Roster has ${roster.length} ready participants; run play-in first to cap at 64.`,
+    );
   }
 
   const byId = new Map(roster.map((r) => [r.id, r]));

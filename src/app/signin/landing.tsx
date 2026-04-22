@@ -8,7 +8,13 @@ import { GlobeBackground } from "@/components/globe-background";
 
 const POST_UNROLL_DELAY_MS = 900;
 
-export function Landing({ callbackUrl }: { callbackUrl: string }) {
+export function Landing({
+  callbackUrl,
+  error,
+}: {
+  callbackUrl: string;
+  error?: string | null;
+}) {
   const [unroll, setUnroll] = useState(false);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -67,6 +73,12 @@ export function Landing({ callbackUrl }: { callbackUrl: string }) {
               <span className="text-primary">Vibe-a-thon</span>
             </h1>
           </div>
+
+          {error && (
+            <div className="mb-5 p-4 rounded-xl bg-error-container/30 border border-error/40 text-on-error-container text-sm">
+              {error}
+            </div>
+          )}
 
           <button
             type="button"

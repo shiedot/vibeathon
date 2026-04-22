@@ -20,6 +20,7 @@ type ExistingRow = {
 export function PlayInClient({ existing }: { existing: ExistingRow[] }) {
   const [preview, setPreview] = useState<PlayInMatchupPreview[] | null>(null);
   const [totalEligible, setTotal] = useState<number | null>(null);
+  const [overflow, setOverflow] = useState<number | null>(null);
   const [startAt, setStartAt] = useState(() => {
     const d = new Date();
     d.setHours(8, 0, 0, 0);
@@ -35,11 +36,18 @@ export function PlayInClient({ existing }: { existing: ExistingRow[] }) {
       else {
         setPreview(res.data.matchups);
         setTotal(res.data.total);
-        setMsg(
-          res.data.matchups.length === 0
-            ? `Roster size ${res.data.total} — no play-in needed.`
-            : null,
-        );
+        setOverflow(res.data.overflow);
+        if (res.data.matchups.length === 0) {
+          setMsg(`Roster size ${res.data.total} — no play-in needed.`);
+        } else if (res.data.matchups.length < res.data.overflow) {
+          setMsg(
+            `⚠ Only ${res.data.matchups.length} pairing(s) possible, but overflow is ${res.data.overflow}. Commit will fail — add more junior or senior volunteers.`,
+          );
+        } else {
+          setMsg(
+            `${res.data.matchups.length} play-in battle(s) will cap the bracket at 64.`,
+          );
+        }
       }
     });
   }
@@ -89,7 +97,13 @@ export function PlayInClient({ existing }: { existing: ExistingRow[] }) {
         </div>
         {totalEligible != null && (
           <div className="text-xs text-on-surface-variant">
-            Total eligible participants: {totalEligible}
+            Total eligible: <span className="font-mono">{totalEligible}</span>
+            {overflow != null && overflow > 0 && (
+              <>
+                {" · "}overflow to cut:{" "}
+                <span className="font-mono text-tertiary">{overflow}</span>
+              </>
+            )}
           </div>
         )}
         {msg && <div className="text-sm">{msg}</div>}
