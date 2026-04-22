@@ -24,6 +24,7 @@ export default async function PickPage({ searchParams }: PickPageProps) {
       name: participants.name,
       department: participants.department,
       employeeId: participants.employeeId,
+      role: participants.role,
     })
     .from(participants)
     .orderBy(asc(participants.name));

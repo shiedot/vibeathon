@@ -14,6 +14,7 @@ type PickerParticipant = {
   name: string;
   department: string;
   employeeId: string;
+  role: "participant" | "organizer" | "judge";
 };
 
 type SentState = {
@@ -140,7 +141,11 @@ export function ParticipantPicker({
                   </option>
                   {participants.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} · {p.department}
+                      {p.role === "organizer"
+                        ? `★ ${p.name} · Organizer`
+                        : p.role === "judge"
+                          ? `⚖ ${p.name} · Judge`
+                          : `${p.name} · ${p.department}`}
                     </option>
                   ))}
                 </select>
