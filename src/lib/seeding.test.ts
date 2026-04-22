@@ -76,18 +76,34 @@ describe("generateR1Matchups", () => {
     expect(seen.size).toBe(64);
   });
 
-  it("pairs adjacent seeds within a pod (balanced matches)", () => {
+  it("pairs top vs bottom within a pod (fold pairing)", () => {
     const pods = snakeDraftPods(mkRoster(64), 8);
     const matchups = generateR1Matchups(pods);
     for (const pod of pods) {
       const podMatchups = matchups.filter((m) => m.podId === pod.podId);
       expect(podMatchups).toHaveLength(4);
-      // Member seeds in pod order are already score-desc; adjacentPairs
-      // pairs index 0-1, 2-3, 4-5, 6-7.
+      // Members are already in score-desc order from snake draft, so
+      // top-vs-bottom is (0, N-1), (1, N-2), (2, N-3), (3, N-4).
+      const n = pod.members.length;
       for (let i = 0; i < 4; i += 1) {
-        expect(podMatchups[i].teamA.id).toBe(pod.members[i * 2].id);
-        expect(podMatchups[i].teamB.id).toBe(pod.members[i * 2 + 1].id);
+        expect(podMatchups[i].teamA.id).toBe(pod.members[i].id);
+        expect(podMatchups[i].teamB.id).toBe(pod.members[n - 1 - i].id);
       }
     }
+  });
+
+  it("for an 8-member pod, pairs 1v8, 2v7, 3v6, 4v5 (highest spread first)", () => {
+    const pods = snakeDraftPods(mkRoster(64), 8);
+    const matchups = generateR1Matchups(pods);
+    const pod1 = matchups.filter((m) => m.podId === 1);
+    const members = pods[0].members;
+    expect(pod1[0].teamA.id).toBe(members[0].id);
+    expect(pod1[0].teamB.id).toBe(members[7].id);
+    expect(pod1[1].teamA.id).toBe(members[1].id);
+    expect(pod1[1].teamB.id).toBe(members[6].id);
+    expect(pod1[2].teamA.id).toBe(members[2].id);
+    expect(pod1[2].teamB.id).toBe(members[5].id);
+    expect(pod1[3].teamA.id).toBe(members[3].id);
+    expect(pod1[3].teamB.id).toBe(members[4].id);
   });
 });

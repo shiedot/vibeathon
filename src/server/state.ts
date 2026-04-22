@@ -624,9 +624,14 @@ export type AuditState = {
 };
 
 export async function getAuditState(): Promise<AuditState> {
+  // Conservation applies only to the betting economy — i.e. `role = participant`.
+  // Organizers/judges never receive a seed, mentor bonus, or learner bankroll,
+  // so any personalBankroll sitting on their rows (e.g. from the schema default
+  // of 1000) is noise and must be excluded from both sides of the invariant.
   const [pb] = await db
     .select({ s: sum(participants.personalBankroll) })
-    .from(participants);
+    .from(participants)
+    .where(eq(participants.role, "participant"));
   const [tp] = await db
     .select({ s: sum(teams.teamPot) })
     .from(teams);
@@ -642,17 +647,21 @@ export async function getAuditState(): Promise<AuditState> {
     .from(bankrollLedger)
     .groupBy(bankrollLedger.kind);
 
-  // Conservation expected: 1000 ₿ × participants + organizer bonuses (mentor/learner)
+  // Conservation expected: 1000 ₿ × participants + organizer bonuses (mentor/learner).
+  // Mentor/learner fields are only ever written on `role = participant` rows,
+  // but we scope the sums explicitly for symmetry with `pb` above.
   const [participantCount] = await db
     .select({ c: sql<number>`count(*)` })
     .from(participants)
     .where(eq(participants.role, "participant"));
   const [mentorTotal] = await db
     .select({ s: sum(participants.mentorHonorBonus) })
-    .from(participants);
+    .from(participants)
+    .where(eq(participants.role, "participant"));
   const [learnerTotal] = await db
     .select({ s: sum(participants.learnerBankroll) })
-    .from(participants);
+    .from(participants)
+    .where(eq(participants.role, "participant"));
 
   const expected =
     Number(participantCount?.c ?? 0) * 1000 +

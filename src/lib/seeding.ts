@@ -7,8 +7,9 @@
  * their respective pods.
  *
  * R1 matchups are deterministic: within each pod sorted by score desc, pair
- * adjacent seeds (1v2, 3v4, 5v6, 7v8) for balanced matches. This is
- * overridable by the admin in the pods UI.
+ * the top seed vs the bottom seed (1v8, 2v7, 3v6, 4v5). This mirrors a
+ * classic bracket fold and maximises the spread within each R1 match. The
+ * admin can override any matchup in the pods UI.
  */
 
 export type RosterEntry = {
@@ -85,14 +86,18 @@ export function snakeDraftPods(
 }
 
 /**
- * Adjacent-seed pairing within a pod. Members are already snake-drafted in
- * seed order (top member first), so 1v2 / 3v4 / ... yields the most balanced
- * R1 matches possible given the pod composition.
+ * Top-vs-bottom pairing within a pod. Members are sorted score-desc, then
+ * the top seed plays the bottom seed (0 vs N-1), second-top plays
+ * second-bottom (1 vs N-2), and so on. For an 8-pod: 1v8, 2v7, 3v6, 4v5.
+ *
+ * Concretely, in a 64-roster where pod 1 holds global seeds
+ * {1, 16, 17, 32, 33, 48, 49, 64}, this yields:
+ *   #1 vs #64, #16 vs #49, #17 vs #48, #32 vs #33.
  */
-function adjacentPairs(members: RosterEntry[]): [RosterEntry, RosterEntry][] {
+function topBottomPairs(members: RosterEntry[]): [RosterEntry, RosterEntry][] {
   if (members.length % 2 !== 0) {
     throw new Error(
-      `adjacentPairs requires even count, got ${members.length}`,
+      `topBottomPairs requires even count, got ${members.length}`,
     );
   }
   const ordered = members.slice().sort((a, b) => {
@@ -104,8 +109,9 @@ function adjacentPairs(members: RosterEntry[]): [RosterEntry, RosterEntry][] {
     return a.id.localeCompare(b.id);
   });
   const out: [RosterEntry, RosterEntry][] = [];
-  for (let i = 0; i < ordered.length; i += 2) {
-    out.push([ordered[i], ordered[i + 1]]);
+  const half = ordered.length / 2;
+  for (let i = 0; i < half; i += 1) {
+    out.push([ordered[i], ordered[ordered.length - 1 - i]]);
   }
   return out;
 }
@@ -113,7 +119,7 @@ function adjacentPairs(members: RosterEntry[]): [RosterEntry, RosterEntry][] {
 export function generateR1Matchups(pods: PodAssignment[]): R1MatchupPreview[] {
   const out: R1MatchupPreview[] = [];
   for (const pod of pods) {
-    const pairs = adjacentPairs(pod.members);
+    const pairs = topBottomPairs(pod.members);
     for (const [a, b] of pairs) {
       out.push({ podId: pod.podId, teamA: a, teamB: b });
     }
