@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { getCurrentParticipant } from "@/server/current-participant";
 import { db } from "@/db/client";
 import { bankrollLedger, roundConfig } from "@/db/schema";
-import { Countdown } from "@/components/countdown";
+import { DashboardHero } from "./_dashboard-hero";
 
 export const dynamic = "force-dynamic";
 
@@ -32,27 +32,12 @@ export default async function DashboardPage() {
 
   return (
     <main className="px-6 max-w-7xl mx-auto space-y-8">
-      <section className="relative overflow-hidden rounded-xl bg-surface-container-low p-8 md:p-12 border-l-2 border-primary shadow-[0_0_20px_rgba(69,237,207,0.15)]">
-        <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
-          <div className="w-full h-full bg-[radial-gradient(circle_at_center,var(--color-primary),transparent_70%)]" />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
-          <div>
-            <span className="font-label text-xs uppercase tracking-[0.2em] text-primary-fixed-dim font-bold mb-2 block">
-              {currentRound ? "Current round" : "Pre-event"}
-            </span>
-            <h1 className="font-headline text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none">
-              {currentRound ? currentRound.label : "Awaiting kickoff"}
-            </h1>
-          </div>
-          <div className="bg-surface-container-highest/50 backdrop-blur-md p-6 rounded-lg border border-outline-variant/30 min-w-[260px]">
-            <Countdown
-              target={currentRound?.endsAt ?? null}
-              label="Round ends in"
-            />
-          </div>
-        </div>
-      </section>
+      <DashboardHero
+        defaultRound={{
+          label: currentRound?.label ?? null,
+          endsAt: currentRound?.endsAt?.toISOString() ?? null,
+        }}
+      />
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 glass-panel p-8 rounded-xl border border-outline-variant/20 relative overflow-hidden group">

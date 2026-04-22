@@ -9,7 +9,7 @@
 import { cookies } from "next/headers";
 
 export const ADMIN_COOKIE = "vibeathon.admin";
-export const DEFAULT_ADMIN_PASSWORD = "VIBE4TH0N1";
+export const DEFAULT_ADMIN_PASSWORD = "V1B3";
 
 export function adminPassword(): string {
   return process.env.ADMIN_PASSWORD?.trim() || DEFAULT_ADMIN_PASSWORD;
