@@ -56,7 +56,6 @@ const ROSTER: Row[] = [
   { rosterNo: 16, name: "MD SAIFUL ISLAM", department: "BACKEND", team: "PRESTO", years: 5, comfort: "Using it Regularly", tool: "Cursor", confidence: 4 },
   { rosterNo: 17, name: "MD RAJIB", department: "DATA", team: "VRS", years: 5, comfort: "Using it Regularly", tool: "Codex + VS Code", confidence: 5 },
   { rosterNo: 18, name: "MD. TARIQUL ISLAM", department: "DATA", team: "VRS", years: 5, comfort: "Eager to Learn", tool: "Codex + VS Code", confidence: 3 },
-  { rosterNo: 19, name: "MD. FAISAL AMIR MOSTAFA", department: "FRONTEND", team: "PRESTO", years: 5, comfort: "Using it Regularly", tool: "Codex + VS Code", confidence: 5 },
   { rosterNo: 20, name: "JAMINUR RASHID", department: "BACKEND", team: "PRESTO", years: 4.6, comfort: "Using it Regularly", tool: "Codex + VS Code", confidence: 4 },
   { rosterNo: 21, name: "JANNATUL NAIM", department: "BACKEND", team: "VRS", years: 4.5, comfort: "Using it Regularly", tool: "Codex + VS Code", confidence: 4 },
   { rosterNo: 22, name: "SAMRAT GHOSH", department: "BACKEND", team: "VRS", years: 4.5, comfort: "Using it Regularly", tool: "Codex + VS Code", confidence: 4 },
@@ -103,7 +102,6 @@ const ROSTER: Row[] = [
   { rosterNo: 63, name: "MD. ASHFIQUL ALAM CHOWDHURY", department: "BACKEND", team: "VRS", years: 1, comfort: "Eager to Learn", tool: "Claude Code + VS Code", confidence: 5 },
   { rosterNo: 64, name: "RAJIB BISWAS", department: "DEVOPS", team: "VRS", years: 1, comfort: "Eager to Learn", tool: "Codex + VS Code", confidence: 4 },
   { rosterNo: 65, name: "MD. JABER AL SALEH", department: "SQA", team: "VRS", years: 0, comfort: "Eager to Learn", tool: "Claude Code + VS Code", confidence: 3 },
-  { rosterNo: 66, name: "FORHAD IBN HAQUE", department: "DESIGNER", team: "PRESTO", years: 0, comfort: "Eager to Learn", tool: "Claude Code + VS Code", confidence: 2 },
 ];
 
 const EMAIL_DOMAIN = process.env.ROSTER_EMAIL_DOMAIN ?? "travelai.com";
@@ -130,7 +128,6 @@ const EMAIL_BY_ROSTER: Record<number, string> = {
   16: "saiful.islam@w3engineers.com",
   17: "md.rajib@w3engineers.com",
   18: "tariqul.islam@w3engineers.com",
-  19: "faisalamirmostaf@w3engineers.com",
   20: "jaminur@w3engineers.com",
   21: "jannatul@w3engineers.com",
   22: "samrat@w3engineers.com",
@@ -177,7 +174,6 @@ const EMAIL_BY_ROSTER: Record<number, string> = {
   63: "ashfiqul@w3engineers.com",
   64: "rajib.b@w3engineers.com",
   65: "jaber@w3engineers.com",
-  66: "forhad@w3engineers.com",
 };
 
 function makeEmail(name: string, rosterNo: number): string {

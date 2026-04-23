@@ -35,7 +35,6 @@ const ROSTER_EMAILS: RosterEmail[] = [
   { rosterNo: 16, name: "MD SAIFUL ISLAM", email: "saiful.islam@w3engineers.com" },
   { rosterNo: 17, name: "MD RAJIB", email: "md.rajib@w3engineers.com" },
   { rosterNo: 18, name: "MD. TARIQUL ISLAM", email: "tariqul.islam@w3engineers.com" },
-  { rosterNo: 19, name: "MD. FAISAL AMIR MOSTAFA", email: "faisalamirmostaf@w3engineers.com" },
   { rosterNo: 20, name: "JAMINUR RASHID", email: "jaminur@w3engineers.com" },
   { rosterNo: 21, name: "JANNATUL NAIM", email: "jannatul@w3engineers.com" },
   { rosterNo: 22, name: "SAMRAT GHOSH", email: "samrat@w3engineers.com" },
@@ -82,7 +81,6 @@ const ROSTER_EMAILS: RosterEmail[] = [
   { rosterNo: 63, name: "MD. ASHFIQUL ALAM CHOWDHURY", email: "ashfiqul@w3engineers.com" },
   { rosterNo: 64, name: "RAJIB BISWAS", email: "rajib.b@w3engineers.com" },
   { rosterNo: 65, name: "MD. JABER AL SALEH", email: "jaber@w3engineers.com" },
-  { rosterNo: 66, name: "FORHAD IBN HAQUE", email: "forhad@w3engineers.com" },
 ];
 
 type Outcome =
