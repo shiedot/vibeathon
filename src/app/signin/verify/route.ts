@@ -18,9 +18,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(err);
   }
 
-  const callback = result.callbackUrl || "/";
+  // Organizers always land on /admin after consuming a magic link, regardless
+  // of what `callbackUrl` was stored on the link. This makes the route the
+  // single source of truth — scripts, old tokens, and any future entrypoints
+  // that create links with a non-admin callback still do the right thing.
+  const rawCallback =
+    result.participant.role === "organizer"
+      ? "/admin"
+      : result.callbackUrl || "/";
   const safeCallback =
-    callback.startsWith("/") && !callback.startsWith("//") ? callback : "/";
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/";
   const dest = new URL(safeCallback, base);
 
   const store = await cookies();
