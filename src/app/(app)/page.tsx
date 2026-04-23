@@ -60,19 +60,36 @@ export default async function DashboardPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 gap-8">
-            <BankrollStat
-              label="Personal bankroll"
-              amount={`${me.participant.personalBankroll.toLocaleString()} ₿`}
-              accent="primary"
-              icon="trending_up"
-            />
-            <BankrollStat
-              label="Department"
-              amount={me.participant.department}
-              accent="tertiary"
-              icon="badge"
-              border
-            />
+            {me.role === "organizer" ? (
+              <div className="md:col-span-2">
+                <span className="text-[10px] uppercase text-gray-500 font-bold tracking-widest">
+                  Bankroll
+                </span>
+                <p className="font-headline text-2xl font-black text-on-surface-variant mt-1">
+                  Organizers are not in the ₿ economy
+                </p>
+                <p className="text-xs text-on-surface-variant/80 mt-2">
+                  You can run admin and judge tools; TravellerBux apply to
+                  participants only.
+                </p>
+              </div>
+            ) : (
+              <>
+                <BankrollStat
+                  label="Personal bankroll"
+                  amount={`${me.participant.personalBankroll.toLocaleString()} ₿`}
+                  accent="primary"
+                  icon="trending_up"
+                />
+                <BankrollStat
+                  label="Department"
+                  amount={me.participant.department}
+                  accent="tertiary"
+                  icon="badge"
+                  border
+                />
+              </>
+            )}
           </div>
         </div>
 

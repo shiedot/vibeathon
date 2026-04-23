@@ -26,6 +26,7 @@ function itemsForRole(role: Role, isAdmin: boolean) {
 }
 
 type TopAppBarProps = {
+  /** Omitted for staff (organizers) — not in the ₿ economy. */
   bankroll?: number;
   user?: {
     name: string;
@@ -37,12 +38,13 @@ type TopAppBarProps = {
 };
 
 export function TopAppBar({
-  bankroll = 1000,
+  bankroll,
   user,
   role = "participant",
   isAdmin = false,
 }: TopAppBarProps) {
   const navItems = itemsForRole(role, isAdmin);
+  const showBankroll = bankroll !== undefined;
   return (
     <nav className="fixed top-0 w-full z-50 bg-[#121416]/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,208,180,0.05)]">
       <div className="flex justify-between items-center px-6 py-4 w-full max-w-7xl mx-auto">
@@ -65,11 +67,13 @@ export function TopAppBar({
               </NavLink>
             ))}
           </div>
-          <div className="bg-surface-container-high px-4 py-2 rounded-full border border-outline-variant/20">
-            <span className="text-primary-container font-headline font-bold">
-              ₿ {bankroll.toLocaleString()}
-            </span>
-          </div>
+          {showBankroll && (
+            <div className="bg-surface-container-high px-4 py-2 rounded-full border border-outline-variant/20">
+              <span className="text-primary-container font-headline font-bold">
+                ₿ {bankroll.toLocaleString()}
+              </span>
+            </div>
+          )}
 
           {user && (
             <div className="flex items-center gap-3">

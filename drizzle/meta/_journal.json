@@ -36,6 +36,13 @@
       "when": 1776865351196,
       "tag": "0004_jittery_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776900000000,
+      "tag": "0005_organizer_zero_bankroll",
+      "breakpoints": true
     }
   ]
 }

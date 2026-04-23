@@ -52,6 +52,7 @@ async function main(): Promise<void> {
         name: name ?? existing.name,
         email,
         department: existing.department || "ORGANIZER",
+        personalBankroll: 0,
       })
       .where(eq(participants.id, existing.id));
     console.log(

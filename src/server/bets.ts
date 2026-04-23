@@ -32,6 +32,9 @@ export async function placeBet(opts: {
     .where(eq(participants.id, opts.bettorId))
     .limit(1);
   if (!participant) throw new Error("Bettor not found");
+  if (participant.role === "organizer") {
+    throw new Error("Organizers are not in the betting economy");
+  }
 
   const max = maxAllowedBet(participant.personalBankroll);
   if (opts.stakeAmount > max) {

@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   bankrollLedger,
@@ -386,7 +386,8 @@ export async function resetTournamentState(): Promise<void> {
       currentTeamId: null,
       r1LineageRootId: null,
       eliminatedByTeamId: null,
-      personalBankroll: 1000,
+      // Organizers are staff — they are not in the TravellerBux economy.
+      personalBankroll: sql`CASE WHEN ${participants.role} = 'organizer' THEN 0 ELSE 1000 END`,
       isPlayInParticipant: false,
       playInRole: null,
       playInResult: null,

@@ -33,6 +33,7 @@ async function main() {
         name: ORGANIZER.name,
         email: ORGANIZER.email,
         department: existing.department || ORGANIZER.department,
+        personalBankroll: 0,
       })
       .where(eq(participants.id, existing.id));
     console.log(

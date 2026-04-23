@@ -21,7 +21,9 @@ export default async function AppShellLayout({
   return (
     <>
       <TopAppBar
-        bankroll={me.participant.personalBankroll}
+        bankroll={
+          me.role === "organizer" ? undefined : me.participant.personalBankroll
+        }
         user={traveller}
         role={me.role}
         isAdmin={me.isAdmin}

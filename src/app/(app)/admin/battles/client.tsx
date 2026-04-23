@@ -4,7 +4,9 @@ import Link from "next/link";
 import { Fragment, useMemo, useState, useTransition } from "react";
 import {
   closeBettingAction,
+  forceResolveAction,
   judgeDecideAction,
+  reverseBattleAction,
   startBattleAction,
   startRoundAction,
 } from "../actions";
@@ -68,6 +70,42 @@ export function BattlesClient({ rows }: { rows: Row[] }) {
         note: "Admin DQ from battles panel",
       });
       if (!res.ok) setMsg(res.error);
+    });
+  }
+
+  function pickWinner(row: Row, side: "A" | "B") {
+    const winnerName = side === "A" ? row.teamA : row.teamB;
+    if (
+      !confirm(
+        `Declare ${winnerName} the winner of R${row.roundNumber}? This resolves the battle, transfers the losing team, and settles any bets.`,
+      )
+    ) {
+      return;
+    }
+    const winnerId = side === "A" ? row.teamAId : row.teamBId;
+    start(async () => {
+      const res = await forceResolveAction(
+        row.id,
+        winnerId,
+        `Organizer pick: ${winnerName}`,
+      );
+      if (!res.ok) setMsg(res.error);
+      else setMsg(`R${row.roundNumber}: ${winnerName} declared winner.`);
+    });
+  }
+
+  function reverseResolved(id: string) {
+    if (
+      !confirm(
+        "Reverse this resolution? Restores both teams, refunds bets, removes next-round matchups.",
+      )
+    ) {
+      return;
+    }
+    start(async () => {
+      const res = await reverseBattleAction(id);
+      if (!res.ok) setMsg(res.error);
+      else setMsg(`Battle ${id.slice(0, 8)} reversed to voting.`);
     });
   }
 
@@ -181,37 +219,73 @@ export function BattlesClient({ rows }: { rows: Row[] }) {
                           ? r.teamB
                           : "—"}
                     </td>
-                    <td className="p-3 align-top text-right space-x-2">
-                      {r.status === "pending" && (
-                        <button
-                          type="button"
-                          onClick={() => startBattle(r.id)}
-                          disabled={pending}
-                          className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-primary text-on-primary"
-                        >
-                          Start
-                        </button>
-                      )}
-                      {r.status === "voting" && (
-                        <>
+                    <td className="p-3 align-top text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {r.status === "pending" && (
                           <button
                             type="button"
-                            onClick={() => closeBet(r.id)}
+                            onClick={() => startBattle(r.id)}
                             disabled={pending}
-                            className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-surface-container-highest border border-outline-variant/30"
+                            className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-primary text-on-primary"
                           >
-                            Lock bets
+                            Start
                           </button>
+                        )}
+                        {r.status === "voting" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => closeBet(r.id)}
+                              disabled={pending}
+                              className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-surface-container-highest border border-outline-variant/30"
+                            >
+                              Lock bets
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => forceDq(r.id)}
+                              disabled={pending}
+                              className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-tertiary/20 text-tertiary"
+                            >
+                              DQ both
+                            </button>
+                          </>
+                        )}
+                        {(r.status === "pending" ||
+                          r.status === "voting" ||
+                          r.status === "deadlocked") && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => pickWinner(r, "A")}
+                              disabled={pending}
+                              title={`Declare ${r.teamA} winner (organizer override)`}
+                              className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            >
+                              Pick A
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => pickWinner(r, "B")}
+                              disabled={pending}
+                              title={`Declare ${r.teamB} winner (organizer override)`}
+                              className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            >
+                              Pick B
+                            </button>
+                          </>
+                        )}
+                        {r.status === "resolved" && (
                           <button
                             type="button"
-                            onClick={() => forceDq(r.id)}
+                            onClick={() => reverseResolved(r.id)}
                             disabled={pending}
                             className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-tertiary/20 text-tertiary"
                           >
-                            DQ both
+                            Reverse
                           </button>
-                        </>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {expanded && (
