@@ -108,7 +108,81 @@ const ROSTER: Row[] = [
 
 const EMAIL_DOMAIN = process.env.ROSTER_EMAIL_DOMAIN ?? "travelai.com";
 
+// Real w3engineers addresses keyed by rosterNo. Takes precedence over the
+// generated placeholder email. Keep in sync with
+// `scripts/update-roster-emails.ts`.
+const EMAIL_BY_ROSTER: Record<number, string> = {
+  1: "arif@w3engineers.com",
+  2: "tawhid@w3engineers.com",
+  3: "mamunhasan@w3engineers.com",
+  4: "nur@w3engineers.com",
+  5: "hera@w3engineers.com",
+  6: "larry@w3engineers.com",
+  7: "murshid@w3engineers.com",
+  8: "masum@w3engineers.com",
+  9: "almubin@w3engineers.com",
+  10: "tohidul@w3engineers.com",
+  11: "iqbalhossain@w3engineers.com",
+  12: "shohel@w3engineers.com",
+  13: "mamunur.rashid@w3engineers.com",
+  14: "fazley@w3engineers.com",
+  15: "partha@w3engineers.com",
+  16: "saiful.islam@w3engineers.com",
+  17: "md.rajib@w3engineers.com",
+  18: "tariqul.islam@w3engineers.com",
+  19: "faisalamirmostaf@w3engineers.com",
+  20: "jaminur@w3engineers.com",
+  21: "jannatul@w3engineers.com",
+  22: "samrat@w3engineers.com",
+  23: "imtiaz@w3engineers.com",
+  24: "bashar@w3engineers.com",
+  25: "ariful@w3engineers.com",
+  26: "shejuty@w3engineers.com",
+  27: "khandakar.adnan@w3engineers.com",
+  28: "salah@w3engineers.com",
+  29: "asraful@w3engineers.com",
+  30: "mahibur@w3engineers.com",
+  31: "tahsin@w3engineers.com",
+  32: "al_amin@w3engineers.com",
+  33: "mehedi.hasan@w3engineers.com",
+  34: "shohag@w3engineers.com",
+  35: "ehsan@w3engineers.com",
+  36: "tahseen@w3engineers.com",
+  37: "neloy@w3engineers.com",
+  38: "fazle.rabbi@w3engineers.com",
+  39: "sagar@w3engineers.com",
+  40: "shahiduzzaman@w3engineers.com",
+  41: "mumu@w3engineers.com",
+  42: "munir@w3engineers.com",
+  43: "naeem@w3engineers.com",
+  44: "riad@w3engineers.com",
+  45: "zasia.zafreen@w3engineers.com",
+  46: "samia.sultana@w3engineers.com",
+  47: "arif.qa@w3engineers.com",
+  48: "ibrahim@w3engineers.com",
+  49: "rubayet@w3engineers.com",
+  50: "emon@w3engineers.com",
+  51: "shazid@w3engineers.com",
+  52: "nafia@w3engineers.com",
+  53: "aminul@w3engineers.com",
+  54: "munne@w3engineers.com",
+  55: "samia@w3engineers.com",
+  56: "muntasir@w3engineers.com",
+  57: "nadim@w3engineers.com",
+  58: "zahid.juel@w3engineers.com",
+  59: "tuhin@w3engineers.com",
+  60: "ashikur@w3engineers.com",
+  61: "antara@w3engineers.com",
+  62: "rafatul@w3engineers.com",
+  63: "ashfiqul@w3engineers.com",
+  64: "rajib.b@w3engineers.com",
+  65: "jaber@w3engineers.com",
+  66: "forhad@w3engineers.com",
+};
+
 function makeEmail(name: string, rosterNo: number): string {
+  const real = EMAIL_BY_ROSTER[rosterNo];
+  if (real) return real.toLowerCase();
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, "")
