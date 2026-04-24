@@ -8,6 +8,7 @@ import {
   teams,
 } from "@/db/schema";
 import {
+  maybeAdvanceRound,
   resolveWithWinner,
   reverseResolution,
 } from "./battles";
@@ -90,6 +91,7 @@ export async function forceResolveBattle(opts: {
   await resolveWithWinner(battle, opts.winnerTeamId, opts.reason, {
     byUserId: opts.byUserId,
   });
+  await maybeAdvanceRound(battle.roundNumber);
 }
 
 export async function reverseBattle(opts: {

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireOrganizer } from "@/server/current-participant";
 import {
+  advanceCompletedRound,
+  editResolvedBattleWinner,
   judgeDecide,
   startBattle,
   startRound,
@@ -176,7 +178,24 @@ export async function startRoundAction(
 ): Promise<ActionResult<{ started: number }>> {
   return run(async () => {
     const me = await requireOrganizer();
-    return await startRound(round, me.userId);
+    const res = await startRound(round, me.userId);
+    revalidatePath("/admin/battles");
+    revalidatePath("/admin/timing");
+    revalidatePath("/bracket");
+    return res;
+  });
+}
+
+export async function advanceRoundAction(
+  round: number,
+): Promise<ActionResult<{ created: number; nextRound: number }>> {
+  return run(async () => {
+    await requireOrganizer();
+    const res = await advanceCompletedRound(round);
+    revalidatePath("/admin/battles");
+    revalidatePath("/admin/timing");
+    revalidatePath("/bracket");
+    return res;
   });
 }
 
@@ -186,6 +205,7 @@ export async function closeBettingAction(
   return run(async () => {
     await requireOrganizer();
     await closeBetting(battleId);
+    revalidatePath("/admin/battles");
   });
 }
 
@@ -200,6 +220,9 @@ export async function judgeDecideAction(
   return run(async () => {
     const me = await requireOrganizer();
     await judgeDecide({ ...input, byUserId: me.userId });
+    revalidatePath("/admin/battles");
+    revalidatePath("/admin/timing");
+    revalidatePath("/bracket");
     revalidatePath("/judge/deadlocks");
   });
 }
@@ -217,7 +240,30 @@ export async function forceResolveAction(
       reason,
       byUserId: me.userId,
     });
+    revalidatePath("/admin/battles");
+    revalidatePath("/admin/timing");
+    revalidatePath("/bracket");
     revalidatePath("/admin/overrides");
+  });
+}
+
+export async function editBattleWinnerAction(
+  battleId: string,
+  winnerTeamId: string,
+): Promise<ActionResult<void>> {
+  return run(async () => {
+    const me = await requireOrganizer();
+    await editResolvedBattleWinner({
+      battleId,
+      winnerTeamId,
+      byUserId: me.userId,
+    });
+    revalidatePath("/admin/battles");
+    revalidatePath("/admin/timing");
+    revalidatePath("/bracket");
+    revalidatePath("/admin/overrides");
+    revalidatePath("/admin/settlement");
+    revalidatePath("/prizes");
   });
 }
 
@@ -227,7 +273,12 @@ export async function reverseBattleAction(
   return run(async () => {
     const me = await requireOrganizer();
     await reverseBattle({ battleId, byUserId: me.userId });
+    revalidatePath("/admin/battles");
+    revalidatePath("/admin/timing");
+    revalidatePath("/bracket");
     revalidatePath("/admin/overrides");
+    revalidatePath("/admin/settlement");
+    revalidatePath("/prizes");
   });
 }
 

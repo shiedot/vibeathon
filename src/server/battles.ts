@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   bankrollLedger,
@@ -6,6 +6,7 @@ import {
   bets,
   consensusVotes,
   participants,
+  prizeLedger,
   teamMembers,
   teams,
   type Battle,
@@ -17,6 +18,7 @@ import { evaluateConsensus, tallyVotes } from "@/lib/voting";
 import { settleBetsForBattle } from "./bets";
 
 export type StartBattleResult = { id: string; bettingClosesAt: Date };
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export async function startBattle(
   battleId: string,
@@ -67,6 +69,13 @@ export async function startRound(
   }
   return { started };
 }
+
+type RoundResolutionRow = {
+  id: string;
+  status: Battle["status"];
+  winnerTeamId: string | null;
+  roundNumber: number;
+};
 
 export async function castVote(opts: {
   battleId: string;
@@ -400,15 +409,7 @@ export async function maybeAdvanceRound(completedRound: number) {
   const key = roundKeyOrNull(completedRound);
   if (!key) return;
 
-  const rows = await db
-    .select({
-      id: battles.id,
-      status: battles.status,
-      winnerTeamId: battles.winnerTeamId,
-      roundNumber: battles.roundNumber,
-    })
-    .from(battles)
-    .where(eq(battles.roundNumber, completedRound));
+  const rows = await getRoundResolutionRows(completedRound);
   const allDone = rows.every(
     (r) => r.status === "resolved" || r.status === "disqualified",
   );
@@ -421,6 +422,126 @@ export async function maybeAdvanceRound(completedRound: number) {
     .where(eq(battles.roundNumber, completedRound + 1))
     .limit(1);
   if (nextExisting.length > 0) return;
+
+  try {
+    await createNextRoundFromRows(completedRound, rows);
+  } catch (err) {
+    // Odd winner count (e.g. after a DQ-both) or missing pod winners — leave
+    // the next round empty and let an organizer fix it explicitly.
+    console.warn(
+      `[maybeAdvanceRound] auto-advance skipped for round ${completedRound}: ${(err as Error).message}`,
+    );
+  }
+}
+
+export async function advanceCompletedRound(
+  completedRound: number,
+): Promise<{ created: number; nextRound: number }> {
+  if (completedRound >= 6) {
+    throw new Error("Grand Final is the last round.");
+  }
+  const key = roundKeyOrNull(completedRound);
+  if (!key) {
+    throw new Error(`Round ${completedRound} is not a valid tournament round.`);
+  }
+
+  const rows = await getRoundResolutionRows(completedRound);
+  if (rows.length === 0) {
+    throw new Error(`Round ${completedRound} has no battles yet.`);
+  }
+
+  const unresolved = rows.filter(
+    (r) => r.status !== "resolved" && r.status !== "disqualified",
+  );
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Round ${completedRound} still has ${unresolved.length} unresolved battle${unresolved.length === 1 ? "" : "s"}.`,
+    );
+  }
+
+  const nextRound = completedRound + 1;
+  const nextExisting = await db
+    .select({ id: battles.id })
+    .from(battles)
+    .where(eq(battles.roundNumber, nextRound))
+    .limit(1);
+  if (nextExisting.length > 0) {
+    throw new Error(`Round ${nextRound} already exists.`);
+  }
+
+  return await createNextRoundFromRows(completedRound, rows);
+}
+
+async function getRoundResolutionRows(
+  roundNumber: number,
+): Promise<RoundResolutionRow[]> {
+  return await db
+    .select({
+      id: battles.id,
+      status: battles.status,
+      winnerTeamId: battles.winnerTeamId,
+      roundNumber: battles.roundNumber,
+    })
+    .from(battles)
+    .where(eq(battles.roundNumber, roundNumber));
+}
+
+async function createNextRoundFromRows(
+  completedRound: number,
+  rows: RoundResolutionRow[],
+): Promise<{ created: number; nextRound: number }> {
+  const matchups = await buildNextRoundMatchups(completedRound, rows);
+  return await insertNextRoundMatchups(matchups);
+}
+
+export async function syncNextRoundFromCompletedRound(
+  completedRound: number,
+): Promise<{ created: number; nextRound: number } | null> {
+  if (completedRound >= 6) return null;
+
+  const rows = await getRoundResolutionRows(completedRound);
+  if (rows.length === 0) return null;
+
+  const unresolved = rows.some(
+    (row) => row.status !== "resolved" && row.status !== "disqualified",
+  );
+  if (unresolved) return null;
+
+  const matchups = await buildNextRoundMatchups(completedRound, rows);
+  const nextRound = completedRound + 1;
+  const existing = await db
+    .select({
+      id: battles.id,
+      teamAId: battles.teamAId,
+      teamBId: battles.teamBId,
+    })
+    .from(battles)
+    .where(eq(battles.roundNumber, nextRound));
+
+  const existingKeys = new Set(
+    existing.map((battle) => matchupKey(battle.teamAId, battle.teamBId)),
+  );
+  const missing = matchups.matchups.filter(
+    (matchup) =>
+      !existingKeys.has(matchupKey(matchup.teamAId, matchup.teamBId)),
+  );
+  if (missing.length === 0) {
+    return { created: 0, nextRound };
+  }
+
+  return await insertNextRoundMatchups({ ...matchups, matchups: missing });
+}
+
+async function buildNextRoundMatchups(
+  completedRound: number,
+  rows: RoundResolutionRow[],
+): Promise<{
+  matchups: Awaited<ReturnType<typeof advanceRound>>;
+  nextRound: number;
+  duration: number;
+  scheduled: Date;
+}> {
+  const nextRound = completedRound + 1;
 
   // Build winners list.
   const winners: RoundWinner[] = [];
@@ -439,29 +560,40 @@ export async function maybeAdvanceRound(completedRound: number) {
   try {
     matchups = advanceRound(completedRound as 1 | 2 | 3 | 4 | 5, winners);
   } catch (err) {
-    // Odd winner count (e.g. after a DQ-both) or missing pod winners — leave
-    // the next round empty and let an organizer use /admin/overrides to
-    // regenerate matchups manually.
-    console.warn(
-      `[maybeAdvanceRound] auto-advance skipped for round ${completedRound}: ${(err as Error).message}`,
+    throw new Error(
+      `Could not create round ${nextRound}: ${(err as Error).message}`,
     );
-    return;
   }
-  const nextKey = (completedRound + 1) as 1 | 2 | 3 | 4 | 5 | 6;
+  const nextKey = nextRound as 1 | 2 | 3 | 4 | 5 | 6;
   const duration = ROUND_DEFS[nextKey].durationMinutes;
   const scheduled = new Date(Date.now() + 10 * 60 * 1000); // 10-min buffer default
 
-  for (const m of matchups) {
+  return { matchups, nextRound, duration, scheduled };
+}
+
+async function insertNextRoundMatchups(opts: {
+  matchups: Awaited<ReturnType<typeof advanceRound>>;
+  nextRound: number;
+  duration: number;
+  scheduled: Date;
+}): Promise<{ created: number; nextRound: number }> {
+  for (const m of opts.matchups) {
     await db.insert(battles).values({
       roundNumber: m.roundNumber,
       teamAId: m.teamAId,
       teamBId: m.teamBId,
-      scheduledStart: scheduled,
-      roundDurationMinutes: duration,
-      bettingClosesAt: bettingClosesAt(scheduled, duration),
+      scheduledStart: opts.scheduled,
+      roundDurationMinutes: opts.duration,
+      bettingClosesAt: bettingClosesAt(opts.scheduled, opts.duration),
       status: "pending",
     });
   }
+
+  return { created: opts.matchups.length, nextRound: opts.nextRound };
+}
+
+function matchupKey(teamAId: string, teamBId: string): string {
+  return [teamAId, teamBId].sort().join(":");
 }
 
 /**
@@ -469,124 +601,241 @@ export async function maybeAdvanceRound(completedRound: number) {
  * ledger rows. Admin-only path via overrides.ts.
  */
 export async function reverseResolution(battleId: string, byUserId: string) {
+  await db.transaction(async (tx) => {
+    const battle = await getBattleOrThrow(tx, battleId);
+    if (battle.status !== "resolved" || !battle.preResolveSnapshot) {
+      throw new Error("Battle is not resolved or has no snapshot");
+    }
+    await reverseBattleToVotingInTx(tx, battle, byUserId);
+    await tx.delete(prizeLedger);
+  });
+}
+
+export async function editResolvedBattleWinner(opts: {
+  battleId: string;
+  winnerTeamId: string;
+  byUserId: string;
+}): Promise<void> {
   const [battle] = await db
     .select()
     .from(battles)
-    .where(eq(battles.id, battleId))
+    .where(eq(battles.id, opts.battleId))
     .limit(1);
   if (!battle) throw new Error("Battle not found");
   if (battle.status !== "resolved" || !battle.preResolveSnapshot) {
-    throw new Error("Battle is not resolved or has no snapshot");
+    throw new Error("Only resolved battles can change winner.");
+  }
+  if (
+    opts.winnerTeamId !== battle.teamAId &&
+    opts.winnerTeamId !== battle.teamBId
+  ) {
+    throw new Error("Winner must be team A or team B");
+  }
+  if (battle.winnerTeamId === opts.winnerTeamId) {
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    const freshBattle = await getBattleOrThrow(tx, opts.battleId);
+    await reverseBattleToVotingInTx(tx, freshBattle, opts.byUserId);
+    await tx.delete(prizeLedger);
+  });
+
+  await resolveWithWinner(
+    battle,
+    opts.winnerTeamId,
+    "Admin edited winner after resolution",
+    { byUserId: opts.byUserId },
+  );
+  await syncNextRoundFromCompletedRound(battle.roundNumber);
+}
+
+async function reverseBattleToVotingInTx(
+  tx: Tx,
+  battle: Battle,
+  byUserId: string,
+) {
+  const child = await findChildBattle(tx, battle);
+  if (child) {
+    await deleteBattleBranchInTx(tx, child, byUserId);
+  }
+
+  await undoResolvedBattleInTx(tx, battle, byUserId);
+  await tx
+    .update(battles)
+    .set({
+      status: "voting",
+      winnerTeamId: null,
+      actualEnd: null,
+      judgeInterventionNote: null,
+      preResolveSnapshot: null,
+      stakeA: 0,
+      stakeB: 0,
+      combinedPool: 0,
+    })
+    .where(eq(battles.id, battle.id));
+
+  await tx.insert(bankrollLedger).values({
+    kind: "admin_override",
+    battleId: battle.id,
+    delta: 0,
+    reason: "Battle reversed to voting",
+    byUserId,
+  });
+}
+
+async function deleteBattleBranchInTx(
+  tx: Tx,
+  battle: Battle,
+  byUserId: string,
+) {
+  const child = await findChildBattle(tx, battle);
+  if (child) {
+    await deleteBattleBranchInTx(tx, child, byUserId);
+  }
+
+  if (battle.status === "resolved") {
+    await undoResolvedBattleInTx(tx, battle, byUserId);
+  } else if (battle.status === "disqualified") {
+    await undoDisqualifiedBattleInTx(tx, battle, byUserId);
+  } else {
+    await refundBattleBetsInTx(tx, battle.id, byUserId);
+  }
+
+  await tx.delete(battles).where(eq(battles.id, battle.id));
+}
+
+async function undoResolvedBattleInTx(
+  tx: Tx,
+  battle: Battle,
+  byUserId: string,
+) {
+  if (!battle.preResolveSnapshot || !battle.winnerTeamId) {
+    throw new Error("Resolved battle is missing reversal snapshot data.");
   }
   const snap = battle.preResolveSnapshot;
 
-  await db.transaction(async (tx) => {
-    // Restore team pots.
-    await tx
-      .update(teams)
-      .set({ teamPot: snap.teamAPot, isActive: true, currentRound: battle.roundNumber })
-      .where(eq(teams.id, battle.teamAId));
-    await tx
-      .update(teams)
-      .set({ teamPot: snap.teamBPot, isActive: true, currentRound: battle.roundNumber })
-      .where(eq(teams.id, battle.teamBId));
+  await tx
+    .update(teams)
+    .set({ teamPot: snap.teamAPot, isActive: true, currentRound: battle.roundNumber })
+    .where(eq(teams.id, battle.teamAId));
+  await tx
+    .update(teams)
+    .set({ teamPot: snap.teamBPot, isActive: true, currentRound: battle.roundNumber })
+    .where(eq(teams.id, battle.teamBId));
 
-    // Rebuild memberships from the snapshot.
-    for (const pid of snap.teamAMembers) {
-      await tx
-        .update(teamMembers)
-        .set({ leftAt: null })
-        .where(
-          and(
-            eq(teamMembers.participantId, pid),
-            eq(teamMembers.teamId, battle.teamAId),
-          ),
-        );
-      await tx
-        .update(participants)
-        .set({ currentTeamId: battle.teamAId, eliminatedByTeamId: null })
-        .where(eq(participants.id, pid));
-      await tx
-        .delete(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.participantId, pid),
-            ne(teamMembers.teamId, battle.teamAId),
-          ),
-        );
-    }
-    for (const pid of snap.teamBMembers) {
-      await tx
-        .update(teamMembers)
-        .set({ leftAt: null })
-        .where(
-          and(
-            eq(teamMembers.participantId, pid),
-            eq(teamMembers.teamId, battle.teamBId),
-          ),
-        );
-      await tx
-        .update(participants)
-        .set({ currentTeamId: battle.teamBId, eliminatedByTeamId: null })
-        .where(eq(participants.id, pid));
-      await tx
-        .delete(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.participantId, pid),
-            ne(teamMembers.teamId, battle.teamBId),
-          ),
-        );
-    }
-
-    // Reverse consolation on the losing captain.
-    const math = resolveBattle({
-      winnerTeamPot:
-        battle.winnerTeamId === battle.teamAId ? snap.teamAPot : snap.teamBPot,
-      loserTeamPot:
-        battle.winnerTeamId === battle.teamAId ? snap.teamBPot : snap.teamAPot,
-    });
-    const loserCaptain =
-      battle.winnerTeamId === battle.teamAId ? snap.teamBCaptain : snap.teamACaptain;
+  for (const pid of snap.teamAMembers) {
+    await tx
+      .update(teamMembers)
+      .set({ leftAt: null })
+      .where(
+        and(
+          eq(teamMembers.participantId, pid),
+          eq(teamMembers.teamId, battle.teamAId),
+        ),
+      );
     await tx
       .update(participants)
-      .set({
-        personalBankroll: sql`${participants.personalBankroll} - ${math.loserCaptainConsolation}`,
-      })
-      .where(eq(participants.id, loserCaptain));
-    await tx.insert(bankrollLedger).values({
-      kind: "admin_override",
-      participantId: loserCaptain,
-      battleId: battle.id,
-      delta: -math.loserCaptainConsolation,
-      reason: "Reverse consolation (admin reversal)",
-      byUserId,
-    });
+      .set({ currentTeamId: battle.teamAId, eliminatedByTeamId: null })
+      .where(eq(participants.id, pid));
+    await tx
+      .delete(teamMembers)
+      .where(
+        and(
+          eq(teamMembers.participantId, pid),
+          ne(teamMembers.teamId, battle.teamAId),
+        ),
+      );
+  }
 
-    // Refund all bets placed on this battle.
-    const battleBets = await tx
-      .select()
-      .from(bets)
-      .where(eq(bets.battleId, battleId));
-    for (const b of battleBets) {
-      if (b.payoutAmount != null) {
-        await tx
-          .update(participants)
-          .set({
-            personalBankroll: sql`${participants.personalBankroll} - ${b.payoutAmount}`,
-          })
-          .where(eq(participants.id, b.bettorId));
-        await tx.insert(bankrollLedger).values({
-          kind: "admin_override",
-          participantId: b.bettorId,
-          battleId: battle.id,
-          betId: b.id,
-          delta: -b.payoutAmount,
-          reason: "Reverse bet payout",
-          byUserId,
-        });
-      }
-      // Refund stake back to personal bankroll.
+  for (const pid of snap.teamBMembers) {
+    await tx
+      .update(teamMembers)
+      .set({ leftAt: null })
+      .where(
+        and(
+          eq(teamMembers.participantId, pid),
+          eq(teamMembers.teamId, battle.teamBId),
+        ),
+      );
+    await tx
+      .update(participants)
+      .set({ currentTeamId: battle.teamBId, eliminatedByTeamId: null })
+      .where(eq(participants.id, pid));
+    await tx
+      .delete(teamMembers)
+      .where(
+        and(
+          eq(teamMembers.participantId, pid),
+          ne(teamMembers.teamId, battle.teamBId),
+        ),
+      );
+  }
+
+  const math = resolveBattle({
+    winnerTeamPot:
+      battle.winnerTeamId === battle.teamAId ? snap.teamAPot : snap.teamBPot,
+    loserTeamPot:
+      battle.winnerTeamId === battle.teamAId ? snap.teamBPot : snap.teamAPot,
+  });
+  const loserCaptain =
+    battle.winnerTeamId === battle.teamAId ? snap.teamBCaptain : snap.teamACaptain;
+  await tx
+    .update(participants)
+    .set({
+      personalBankroll: sql`${participants.personalBankroll} - ${math.loserCaptainConsolation}`,
+    })
+    .where(eq(participants.id, loserCaptain));
+  await tx.insert(bankrollLedger).values({
+    kind: "admin_override",
+    participantId: loserCaptain,
+    battleId: battle.id,
+    delta: -math.loserCaptainConsolation,
+    reason: "Reverse consolation (admin reversal)",
+    byUserId,
+  });
+
+  await refundBattleBetsInTx(tx, battle.id, byUserId);
+}
+
+async function undoDisqualifiedBattleInTx(
+  tx: Tx,
+  battle: Battle,
+  byUserId: string,
+) {
+  await tx
+    .update(teams)
+    .set({ isActive: true, currentRound: battle.roundNumber })
+    .where(inArray(teams.id, [battle.teamAId, battle.teamBId]));
+  await refundBattleBetsInTx(tx, battle.id, byUserId);
+}
+
+async function refundBattleBetsInTx(
+  tx: Tx,
+  battleId: string,
+  byUserId: string,
+) {
+  const battleBets = await tx.select().from(bets).where(eq(bets.battleId, battleId));
+  for (const b of battleBets) {
+    if (b.payoutAmount && b.payoutAmount > 0) {
+      await tx
+        .update(participants)
+        .set({
+          personalBankroll: sql`${participants.personalBankroll} - ${b.payoutAmount}`,
+        })
+        .where(eq(participants.id, b.bettorId));
+      await tx.insert(bankrollLedger).values({
+        kind: "admin_override",
+        participantId: b.bettorId,
+        battleId,
+        betId: b.id,
+        delta: -b.payoutAmount,
+        reason: "Reverse bet payout",
+        byUserId,
+      });
+    }
+
+    if (!b.refunded) {
       await tx
         .update(participants)
         .set({
@@ -596,37 +845,48 @@ export async function reverseResolution(battleId: string, byUserId: string) {
       await tx.insert(bankrollLedger).values({
         kind: "bet_refund",
         participantId: b.bettorId,
-        battleId: battle.id,
+        battleId,
         betId: b.id,
         delta: b.stakeAmount,
         reason: "Stake refund on reversal",
         byUserId,
       });
     }
-    await tx.delete(bets).where(eq(bets.battleId, battleId));
+  }
 
-    // Tear down any round-N+1 battles we generated.
-    await tx
-      .delete(battles)
-      .where(eq(battles.roundNumber, battle.roundNumber + 1));
+  await tx.delete(bets).where(eq(bets.battleId, battleId));
+}
 
-    // Reset battle to voting.
-    await tx
-      .update(battles)
-      .set({
-        status: "voting",
-        winnerTeamId: null,
-        actualEnd: null,
-        preResolveSnapshot: null,
-      })
-      .where(eq(battles.id, battleId));
+async function findChildBattle(tx: Tx, battle: Battle): Promise<Battle | null> {
+  if (!battle.winnerTeamId || battle.roundNumber >= 6) {
+    return null;
+  }
 
-    await tx.insert(bankrollLedger).values({
-      kind: "admin_override",
-      battleId: battle.id,
-      delta: 0,
-      reason: "Battle reversed to voting",
-      byUserId,
-    });
-  });
+  const [child] = await tx
+    .select()
+    .from(battles)
+    .where(
+      and(
+        eq(battles.roundNumber, battle.roundNumber + 1),
+        or(
+          eq(battles.teamAId, battle.winnerTeamId),
+          eq(battles.teamBId, battle.winnerTeamId),
+        ),
+      ),
+    )
+    .limit(1);
+
+  return child ?? null;
+}
+
+async function getBattleOrThrow(tx: Tx, battleId: string): Promise<Battle> {
+  const [battle] = await tx
+    .select()
+    .from(battles)
+    .where(eq(battles.id, battleId))
+    .limit(1);
+  if (!battle) {
+    throw new Error("Battle not found");
+  }
+  return battle;
 }

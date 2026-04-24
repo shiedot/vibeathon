@@ -51,8 +51,10 @@ export default async function AdminBattlesPage() {
           Start battles, close betting, nudge deadlocks to judge review. Use
           <strong className="text-emerald-300"> Pick A</strong> /
           <strong className="text-rose-300"> Pick B</strong> to declare a
-          winner as organizer (overrides participant voting). Expand a row to
-          see its Voting Booth tally.
+          winner as organizer (overrides participant voting). Resolved battles
+          can still use <strong className="text-primary"> Edit winner</strong>{" "}
+          to unwind and rebuild the downstream bracket. Expand a row to see its
+          Voting Booth tally.
         </p>
       </header>
       <BattlesClient rows={rows} />
